@@ -2,6 +2,8 @@
 
 一款面向个人使用的简洁 Android 记账应用。项目使用 Kotlin 与 Jetpack Compose 构建，最低支持 Android 8.0（API 26）。
 
+当前稳定版本：`v1.0.0`。安装包可在 GitHub Releases 页面下载。
+
 ## 功能
 
 - 纯支出模式，金额以正数展示，可填写分类、日期与备注
@@ -43,6 +45,8 @@
 ```
 
 调试 APK 会生成在 `app/build/outputs/apk/debug/app-debug.apk`。
+
+正式 APK 使用本地 `keystore.properties` 中配置的私有签名生成；签名文件及配置已被 Git 忽略，不会上传到公开仓库。
 
 ## 使用说明
 

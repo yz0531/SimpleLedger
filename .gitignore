@@ -9,6 +9,8 @@ captures/
 .cxx/
 *.jks
 *.keystore
+/keystore.properties
+/.signing/
 
 # macOS
 .DS_Store
