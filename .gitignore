@@ -1,0 +1,21 @@
+*.iml
+.gradle/
+.idea/
+local.properties
+build/
+app/build/
+captures/
+.externalNativeBuild/
+.cxx/
+*.jks
+*.keystore
+
+# macOS
+.DS_Store
+
+# Local test and verification artifacts
+/current-screen.png
+/e2e-*
+/final-*
+/nutstore-*
+/ledger_e2e.*
