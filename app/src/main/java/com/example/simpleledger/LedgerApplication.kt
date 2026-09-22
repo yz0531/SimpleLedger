@@ -11,6 +11,7 @@ import com.example.simpleledger.data.repository.OfflineLedgerRepository
 import com.example.simpleledger.data.repository.OfflineRecurringRuleRepository
 import com.example.simpleledger.data.transfer.DataTransferManager
 import com.example.simpleledger.data.transfer.LedgerBackupStore
+import com.example.simpleledger.domain.model.LedgerMode
 import com.example.simpleledger.domain.repository.LedgerRepository
 import com.example.simpleledger.domain.repository.RecurringRuleRepository
 import com.example.simpleledger.work.RecurringWorkScheduler
@@ -32,7 +33,18 @@ class AppContainer(context: Context) {
     val nutstoreBackupManager = NutstoreBackupManager(
         backupStore = backupStore,
         credentialStore = nutstoreCredentialStore,
+        postRestoreMaintenance = ::maintainImportedData,
     )
+
+    suspend fun maintainImportedData() {
+        val mode = preferences.currentMode
+        if (mode == LedgerMode.EXPENSE_ONLY) {
+            recurringRepository.disableIncomeRules()
+        }
+        recurringProcessor.processDue(
+            includeIncome = mode == LedgerMode.INCOME_AND_EXPENSE,
+        )
+    }
 }
 
 class LedgerApplication : Application() {

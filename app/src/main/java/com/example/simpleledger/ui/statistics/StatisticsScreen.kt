@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -40,27 +41,32 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.simpleledger.domain.model.LedgerTransaction
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.simpleledger.domain.model.MonthlyExpense
 import com.example.simpleledger.domain.model.YearlyExpenseStatistics
+import com.example.simpleledger.domain.repository.LedgerRepository
 import com.example.simpleledger.ui.components.formatMoney
 import com.example.simpleledger.ui.components.CompactTopBar
 import java.time.Year
 
 @Composable
 fun StatisticsScreen(
-    transactions: List<LedgerTransaction>,
+    repository: LedgerRepository,
     modifier: Modifier = Modifier,
     initialYear: Int = Year.now().value,
 ) {
     var selectedYear by rememberSaveable { mutableIntStateOf(initialYear) }
-    val statistics = remember(transactions, selectedYear) {
-        YearlyExpenseStatistics.from(transactions, selectedYear)
+    val statisticsFlow = remember(repository, selectedYear) {
+        repository.observeYearlyExpenseStatistics(selectedYear)
     }
+    val statistics by statisticsFlow.collectAsStateWithLifecycle(
+        initialValue = YearlyExpenseStatistics.from(emptyList(), selectedYear),
+    )
 
     Scaffold(
         modifier = modifier,
         containerColor = Color.Transparent,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             CompactTopBar(
                 title = "年度统计",

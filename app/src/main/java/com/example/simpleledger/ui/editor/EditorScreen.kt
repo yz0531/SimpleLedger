@@ -49,6 +49,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -84,9 +85,10 @@ fun EditorScreen(
     val isEditing = transactionId != null
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
-    var loadedTransaction by remember { mutableStateOf<LedgerTransaction?>(null) }
+    var loadedTransaction by remember(transactionId) { mutableStateOf<LedgerTransaction?>(null) }
     var isLoading by remember(transactionId) { mutableStateOf(isEditing) }
     var isSaving by remember { mutableStateOf(false) }
+    var hasHydratedDraft by rememberSaveable(transactionId) { mutableStateOf(false) }
     var amount by rememberSaveable(transactionId) { mutableStateOf("") }
     var typeName by rememberSaveable(transactionId) { mutableStateOf(TransactionType.EXPENSE.name) }
     var categoryId by rememberSaveable(transactionId) {
@@ -110,11 +112,14 @@ fun EditorScreen(
                     onBack()
                 } else {
                     loadedTransaction = transaction
-                    amount = amountInput(transaction.amountMinor)
-                    typeName = transaction.type.name
-                    categoryId = transaction.categoryId
-                    occurredOn = transaction.occurredOn
-                    note = transaction.note
+                    if (!hasHydratedDraft) {
+                        amount = amountInput(transaction.amountMinor)
+                        typeName = transaction.type.name
+                        categoryId = transaction.categoryId
+                        occurredOn = transaction.occurredOn
+                        note = transaction.note
+                        hasHydratedDraft = true
+                    }
                 }
             }
             .onFailure {
@@ -180,6 +185,7 @@ fun EditorScreen(
 
     Scaffold(
         modifier = modifier,
+        containerColor = Color.Transparent,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             CompactTopBar(

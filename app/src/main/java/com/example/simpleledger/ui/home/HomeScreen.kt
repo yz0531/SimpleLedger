@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -48,9 +49,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.simpleledger.domain.model.LedgerMode
 import com.example.simpleledger.domain.model.LedgerTransaction
 import com.example.simpleledger.domain.model.TransactionType
+import com.example.simpleledger.domain.repository.LedgerRepository
 import com.example.simpleledger.ui.components.MonthSummaryCard
 import com.example.simpleledger.ui.components.TransactionRow
 import com.example.simpleledger.ui.components.formatDay
@@ -70,7 +73,7 @@ private enum class LedgerFilter(val label: String) {
 
 @Composable
 fun HomeScreen(
-    transactions: List<LedgerTransaction>,
+    repository: LedgerRepository,
     mode: LedgerMode,
     onAdd: () -> Unit,
     onEdit: (String) -> Unit,
@@ -94,6 +97,7 @@ fun HomeScreen(
     Scaffold(
         modifier = modifier,
         containerColor = Color.Transparent,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = onAdd,
@@ -118,7 +122,7 @@ fun HomeScreen(
                 val month = baseMonth.plusMonths((page - CURRENT_MONTH_PAGE).toLong())
                 MonthLedgerPage(
                     month = month,
-                    transactions = transactions,
+                    repository = repository,
                     expenseOnly = expenseOnly,
                     filter = filter,
                     onFilterChanged = { filterName = it.name },
@@ -127,12 +131,12 @@ fun HomeScreen(
                     canGoNext = page < MONTH_PAGE_COUNT - 1,
                     onPreviousMonth = {
                         scope.launch {
-                            pagerState.animateScrollToPage(page - 1, animationSpec = tween(210))
+                            pagerState.animateScrollToPage(page - 1, animationSpec = tween(240))
                         }
                     },
                     onNextMonth = {
                         scope.launch {
-                            pagerState.animateScrollToPage(page + 1, animationSpec = tween(210))
+                            pagerState.animateScrollToPage(page + 1, animationSpec = tween(240))
                         }
                     },
                     onChooseMonth = { monthPickerTarget = month },
@@ -152,7 +156,7 @@ fun HomeScreen(
                 monthPickerTarget = null
                 if (targetPage in 0 until MONTH_PAGE_COUNT) {
                     scope.launch {
-                        pagerState.animateScrollToPage(targetPage, animationSpec = tween(210))
+                        pagerState.animateScrollToPage(targetPage, animationSpec = tween(240))
                     }
                 }
             },
@@ -163,7 +167,7 @@ fun HomeScreen(
 @Composable
 private fun MonthLedgerPage(
     month: YearMonth,
-    transactions: List<LedgerTransaction>,
+    repository: LedgerRepository,
     expenseOnly: Boolean,
     filter: LedgerFilter,
     onFilterChanged: (LedgerFilter) -> Unit,
@@ -174,14 +178,13 @@ private fun MonthLedgerPage(
     onNextMonth: () -> Unit,
     onChooseMonth: () -> Unit,
 ) {
-    val allMonthTransactions = remember(transactions, month) {
-        transactions
-            .filter { it.occurredOn.startsWith(month.toString()) }
-            .sortedWith(
-                compareByDescending<LedgerTransaction> { it.occurredOn }
-                    .thenByDescending { it.createdAtEpochMs },
-            )
+    val transactionFlow = remember(repository, month) {
+        repository.observeDateRange(
+            startInclusive = month.atDay(1).toString(),
+            endExclusive = month.plusMonths(1).atDay(1).toString(),
+        )
     }
+    val allMonthTransactions by transactionFlow.collectAsStateWithLifecycle(initialValue = emptyList())
     val modeTransactions = remember(allMonthTransactions, expenseOnly) {
         if (expenseOnly) {
             allMonthTransactions.filter { it.type == TransactionType.EXPENSE }

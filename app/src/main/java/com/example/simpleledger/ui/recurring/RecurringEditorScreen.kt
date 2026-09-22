@@ -49,6 +49,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -90,9 +91,10 @@ fun RecurringEditorScreen(
     val expenseOnly = mode == LedgerMode.EXPENSE_ONLY
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
-    var loadedRule by remember { mutableStateOf<RecurringRule?>(null) }
+    var loadedRule by remember(ruleId) { mutableStateOf<RecurringRule?>(null) }
     var isLoading by remember(ruleId) { mutableStateOf(isEditing) }
     var isSaving by remember { mutableStateOf(false) }
+    var hasHydratedDraft by rememberSaveable(ruleId) { mutableStateOf(false) }
     var amount by rememberSaveable(ruleId) { mutableStateOf("") }
     var typeName by rememberSaveable(ruleId) { mutableStateOf(TransactionType.EXPENSE.name) }
     var categoryId by rememberSaveable(ruleId) {
@@ -118,12 +120,15 @@ fun RecurringEditorScreen(
                     onBack()
                 } else {
                     loadedRule = rule
-                    amount = amountInput(rule.amountMinor)
-                    typeName = rule.type.name
-                    categoryId = rule.categoryId
-                    frequencyName = rule.frequency.name
-                    startDate = rule.startDate
-                    note = rule.note
+                    if (!hasHydratedDraft) {
+                        amount = amountInput(rule.amountMinor)
+                        typeName = rule.type.name
+                        categoryId = rule.categoryId
+                        frequencyName = rule.frequency.name
+                        startDate = rule.startDate
+                        note = rule.note
+                        hasHydratedDraft = true
+                    }
                 }
             }
             .onFailure {
@@ -184,6 +189,7 @@ fun RecurringEditorScreen(
 
     Scaffold(
         modifier = modifier,
+        containerColor = Color.Transparent,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             CompactTopBar(

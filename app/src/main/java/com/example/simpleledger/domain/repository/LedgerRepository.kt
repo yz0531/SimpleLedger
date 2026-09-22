@@ -1,15 +1,17 @@
 package com.example.simpleledger.domain.repository
 
 import com.example.simpleledger.domain.model.ImportResult
-import com.example.simpleledger.domain.model.LedgerSummary
 import com.example.simpleledger.domain.model.LedgerTransaction
+import com.example.simpleledger.domain.model.YearlyExpenseStatistics
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
 
 interface LedgerRepository {
-    fun observeAll(): Flow<List<LedgerTransaction>>
+    fun observeDateRange(
+        startInclusive: String,
+        endExclusive: String,
+    ): Flow<List<LedgerTransaction>>
 
-    fun observeSummary(): Flow<LedgerSummary> = observeAll().map { LedgerSummary.from(it) }
+    fun observeYearlyExpenseStatistics(year: Int): Flow<YearlyExpenseStatistics>
 
     suspend fun getById(id: String): LedgerTransaction?
 

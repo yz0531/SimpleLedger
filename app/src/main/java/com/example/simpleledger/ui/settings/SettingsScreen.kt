@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -34,14 +35,14 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.example.simpleledger.domain.model.LedgerAppearance
 import com.example.simpleledger.domain.model.LedgerMode
-import com.example.simpleledger.domain.model.LedgerSkin
 import com.example.simpleledger.ui.components.CompactTopBar
 
 @Composable
 fun SettingsScreen(
     mode: LedgerMode,
-    skin: LedgerSkin,
+    appearance: LedgerAppearance,
     onModeChanged: (LedgerMode) -> Unit,
     onSkinPicker: () -> Unit,
     onTransfer: () -> Unit,
@@ -51,6 +52,7 @@ fun SettingsScreen(
     Scaffold(
         modifier = modifier,
         containerColor = Color.Transparent,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = { CompactTopBar(title = "设置") },
     ) { innerPadding ->
         LazyColumn(
@@ -119,7 +121,8 @@ fun SettingsScreen(
                 SettingsEntry(
                     icon = Icons.Rounded.Palette,
                     title = "外观皮肤",
-                    subtitle = "当前：${skin.displayName} · 共 ${LedgerSkin.entries.size} 套",
+                    subtitle = "${appearance.skin.displayName} · ${appearance.color.displayName} · " +
+                        if (appearance.skin.hasImage) "透明度 ${(appearance.imageOpacity * 100).toInt()}%" else "纯色背景",
                     onClick = onSkinPicker,
                 )
             }

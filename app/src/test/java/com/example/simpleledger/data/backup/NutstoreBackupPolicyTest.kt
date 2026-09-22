@@ -87,6 +87,43 @@ class NutstoreBackupPolicyTest {
     }
 
     @Test
+    fun uploadedBackupIsProtectedWhenLegacyLocalTimesSortLater() {
+        val uploaded = NutstoreBackupFiles.automaticName(
+            Instant.parse("2026-09-21T01:02:03Z").toEpochMilli(),
+            ZoneOffset.UTC,
+        )
+        val files = listOf(
+            "auto_2026-09-22_20-00-00-000.json",
+            "auto_2026-09-22_19-00-00-000.json",
+            "auto_2026-09-22_18-00-00-000.json",
+            uploaded,
+        )
+
+        val deleted = NutstoreBackupFiles.filesToDelete(
+            remoteNames = files,
+            protectedNames = setOf(uploaded),
+        )
+
+        assertFalse(uploaded in deleted)
+        assertEquals(1, deleted.size)
+    }
+
+    @Test
+    fun epochNamedBackupIsPreferredOverLegacyLocalTimestamp() {
+        val uploaded = NutstoreBackupFiles.manualName(
+            Instant.parse("2026-09-21T01:02:03Z").toEpochMilli(),
+            ZoneOffset.UTC,
+        )
+
+        assertEquals(
+            uploaded,
+            NutstoreBackupFiles.mostRecent(
+                listOf("manual_2099-12-31_23-59-59-999.json", uploaded),
+            ),
+        )
+    }
+
+    @Test
     fun webDavListingExtractsOnlyJsonFiles() {
         val xml = """
             <d:multistatus xmlns:d="DAV:">

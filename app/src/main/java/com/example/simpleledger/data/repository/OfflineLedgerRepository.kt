@@ -6,7 +6,10 @@ import com.example.simpleledger.data.local.toDomain
 import com.example.simpleledger.data.local.toEntity
 import com.example.simpleledger.domain.model.ImportResult
 import com.example.simpleledger.domain.model.LedgerTransaction
+import com.example.simpleledger.domain.model.MonthlyExpense
+import com.example.simpleledger.domain.model.YearlyExpenseStatistics
 import com.example.simpleledger.domain.repository.LedgerRepository
+import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -15,8 +18,25 @@ class OfflineLedgerRepository(
 ) : LedgerRepository {
     private val dao = database.transactionDao()
 
-    override fun observeAll(): Flow<List<LedgerTransaction>> =
-        dao.observeAll().map { entities -> entities.map { it.toDomain() } }
+    override fun observeDateRange(
+        startInclusive: String,
+        endExclusive: String,
+    ): Flow<List<LedgerTransaction>> = dao.observeDateRange(startInclusive, endExclusive)
+        .map { entities -> entities.map { it.toDomain() } }
+
+    override fun observeYearlyExpenseStatistics(year: Int): Flow<YearlyExpenseStatistics> {
+        val start = LocalDate.of(year, 1, 1).toString()
+        val end = LocalDate.of(year + 1, 1, 1).toString()
+        return dao.observeMonthlyExpenseTotals(start, end).map { totals ->
+            val amountsByMonth = totals.associate { it.month to it.amountMinor }
+            YearlyExpenseStatistics(
+                year = year,
+                monthlyExpenses = (1..12).map { month ->
+                    MonthlyExpense(month = month, amountMinor = amountsByMonth[month] ?: 0L)
+                },
+            )
+        }
+    }
 
     override suspend fun getById(id: String): LedgerTransaction? =
         dao.getById(id)?.toDomain()

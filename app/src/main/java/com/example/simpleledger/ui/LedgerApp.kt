@@ -2,8 +2,11 @@ package com.example.simpleledger.ui
 
 import android.net.Uri
 import android.util.Log
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -12,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ReceiptLong
@@ -48,8 +52,8 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.simpleledger.AppContainer
+import com.example.simpleledger.domain.model.LedgerAppearance
 import com.example.simpleledger.domain.model.LedgerMode
-import com.example.simpleledger.domain.model.LedgerSkin
 import com.example.simpleledger.ui.backup.NutstoreBackupScreen
 import com.example.simpleledger.ui.editor.EditorScreen
 import com.example.simpleledger.ui.home.HomeScreen
@@ -97,12 +101,10 @@ private val topLevelDestinations = listOf(
 @Composable
 fun LedgerApp(
     container: AppContainer,
-    skin: LedgerSkin,
+    appearance: LedgerAppearance,
     modifier: Modifier = Modifier,
 ) {
     val navController = rememberNavController()
-    val transactions by container.repository.observeAll()
-        .collectAsStateWithLifecycle(initialValue = emptyList())
     val mode by container.preferences.mode.collectAsStateWithLifecycle()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
@@ -136,13 +138,7 @@ fun LedgerApp(
     LaunchedEffect(foregroundGeneration) {
         if (foregroundGeneration == 0) return@LaunchedEffect
         try {
-            val foregroundMode = container.preferences.currentMode
-            if (foregroundMode == LedgerMode.EXPENSE_ONLY) {
-                container.recurringRepository.disableIncomeRules()
-            }
-            container.recurringProcessor.processDue(
-                includeIncome = foregroundMode == LedgerMode.INCOME_AND_EXPENSE,
-            )
+            container.maintainImportedData()
             container.nutstoreBackupManager.automaticBackupIfChanged()
         } catch (exception: CancellationException) {
             throw exception
@@ -151,12 +147,22 @@ fun LedgerApp(
         }
     }
 
-    SkinBackground(skin = skin, modifier = modifier) {
+    val topLevelScreenModifier = Modifier
+        .fillMaxSize()
+        .padding(bottom = 64.dp)
+        .navigationBarsPadding()
+
+    SkinBackground(appearance = appearance, modifier = modifier) {
         Scaffold(
             modifier = Modifier.fillMaxSize(),
             containerColor = Color.Transparent,
+            contentWindowInsets = WindowInsets(0, 0, 0, 0),
             bottomBar = {
-                if (showBottomBar) {
+                AnimatedVisibility(
+                    visible = showBottomBar,
+                    enter = fadeIn(tween(180)) + slideInVertically(tween(200)) { it / 5 },
+                    exit = fadeOut(tween(150)) + slideOutVertically(tween(180)) { it / 5 },
+                ) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -173,6 +179,7 @@ fun LedgerApp(
                         ) {
                             topLevelDestinations.forEach { destination ->
                                 NavigationBarItem(
+                                    modifier = Modifier.offset(y = 3.dp),
                                     selected = currentRoute == destination.route,
                                     onClick = { navController.navigateTopLevel(destination.route) },
                                     icon = {
@@ -188,30 +195,23 @@ fun LedgerApp(
                     }
                 }
             },
-        ) { innerPadding ->
-            val navigationModifier = if (showBottomBar) {
-                Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-            } else {
-                Modifier.fillMaxSize()
-            }
-
+        ) {
             NavHost(
                 navController = navController,
                 startDestination = Routes.HOME,
-                modifier = navigationModifier,
-                enterTransition = { fadeIn(animationSpec = tween(120)) },
-                exitTransition = { fadeOut(animationSpec = tween(90)) },
-                popEnterTransition = { fadeIn(animationSpec = tween(120)) },
-                popExitTransition = { fadeOut(animationSpec = tween(90)) },
+                modifier = Modifier.fillMaxSize(),
+                enterTransition = { fadeIn(animationSpec = tween(durationMillis = 170, delayMillis = 40)) },
+                exitTransition = { fadeOut(animationSpec = tween(120)) },
+                popEnterTransition = { fadeIn(animationSpec = tween(durationMillis = 170, delayMillis = 40)) },
+                popExitTransition = { fadeOut(animationSpec = tween(120)) },
             ) {
                 composable(Routes.HOME) {
                     HomeScreen(
-                        transactions = transactions,
+                        repository = container.repository,
                         mode = mode,
                         onAdd = { navController.navigate(Routes.EDITOR) },
                         onEdit = { id -> navController.navigate(Routes.editor(id)) },
+                        modifier = topLevelScreenModifier,
                     )
                 }
                 composable(Routes.RECURRING) {
@@ -220,25 +220,32 @@ fun LedgerApp(
                         mode = mode,
                         onAdd = { navController.navigate(Routes.RECURRING_EDITOR) },
                         onEdit = { id -> navController.navigate(Routes.recurringEditor(id)) },
+                        modifier = topLevelScreenModifier,
                     )
                 }
                 composable(Routes.STATISTICS) {
-                    StatisticsScreen(transactions = transactions)
+                    StatisticsScreen(
+                        repository = container.repository,
+                        modifier = topLevelScreenModifier,
+                    )
                 }
                 composable(Routes.SETTINGS) {
                     SettingsScreen(
                         mode = mode,
-                        skin = skin,
+                        appearance = appearance,
                         onModeChanged = container.preferences::setMode,
                         onSkinPicker = { navController.navigate(Routes.SKIN_PICKER) },
                         onTransfer = { navController.navigate(Routes.TRANSFER) },
                         onNutstoreBackup = { navController.navigate(Routes.NUTSTORE_BACKUP) },
+                        modifier = topLevelScreenModifier,
                     )
                 }
                 composable(Routes.SKIN_PICKER) {
                     SkinPickerScreen(
-                        selectedSkin = skin,
+                        appearance = appearance,
                         onSkinSelected = container.preferences::setSkin,
+                        onColorSelected = container.preferences::setColor,
+                        onOpacityChanged = container.preferences::setImageOpacity,
                         onBack = { navController.popBackStack() },
                     )
                 }
@@ -297,14 +304,7 @@ fun LedgerApp(
                 composable(Routes.TRANSFER) {
                     TransferScreen(
                         transferManager = container.transferManager,
-                        onImportCompleted = {
-                            if (mode == LedgerMode.EXPENSE_ONLY) {
-                                container.recurringRepository.disableIncomeRules()
-                            }
-                            container.recurringProcessor.processDue(
-                                includeIncome = mode == LedgerMode.INCOME_AND_EXPENSE,
-                            )
-                        },
+                        onImportCompleted = container::maintainImportedData,
                         onBack = { navController.popBackStack() },
                     )
                 }

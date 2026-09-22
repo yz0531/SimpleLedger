@@ -54,7 +54,10 @@ class NutstoreCredentialStore(context: Context) {
         if (username.isEmpty() || encryptedPassword.isEmpty()) return null
         return runCatching {
             NutstoreCredentials(username, decrypt(encryptedPassword, username))
-        }.getOrNull()
+        }.getOrElse {
+            clearUnreadableCredentials()
+            null
+        }
     }
 
     fun setAutomaticBackupEnabled(enabled: Boolean) {
@@ -68,6 +71,16 @@ class NutstoreCredentialStore(context: Context) {
         preferences.edit()
             .putString(KEY_LAST_FINGERPRINT, fingerprint)
             .putLong(KEY_LAST_BACKUP_AT, timestampEpochMs)
+            .apply()
+        mutableSettings.value = readSettings()
+    }
+
+    private fun clearUnreadableCredentials() {
+        preferences.edit()
+            .remove(KEY_USERNAME)
+            .remove(KEY_PASSWORD)
+            .remove(KEY_LAST_FINGERPRINT)
+            .remove(KEY_LAST_BACKUP_AT)
             .apply()
         mutableSettings.value = readSettings()
     }

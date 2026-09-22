@@ -17,11 +17,11 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         val container = (application as LedgerApplication).container
         setContent {
-            val skin by container.preferences.skin.collectAsStateWithLifecycle()
-            SimpleLedgerTheme(skin = skin) {
+            val appearance by container.preferences.appearance.collectAsStateWithLifecycle()
+            SimpleLedgerTheme(colorStyle = appearance.color) {
                 LedgerApp(
                     container = container,
-                    skin = skin,
+                    appearance = appearance,
                     modifier = Modifier.fillMaxSize(),
                 )
             }

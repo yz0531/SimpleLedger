@@ -9,5 +9,7 @@
     <device-transfer>
         <include domain="database" path="." />
         <include domain="sharedpref" path="." />
+        <!-- The encrypted password is unusable without its non-transferable Android Keystore key. -->
+        <exclude domain="sharedpref" path="nutstore_backup.xml" />
     </device-transfer>
 </data-extraction-rules>

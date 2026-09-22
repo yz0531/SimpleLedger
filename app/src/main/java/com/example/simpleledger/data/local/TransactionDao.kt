@@ -11,10 +11,31 @@ interface TransactionDao {
     @Query(
         """
         SELECT * FROM transactions
+        WHERE occurredOn >= :startInclusive AND occurredOn < :endExclusive
         ORDER BY occurredOn DESC, createdAtEpochMs DESC, id DESC
         """,
     )
-    fun observeAll(): Flow<List<TransactionEntity>>
+    fun observeDateRange(
+        startInclusive: String,
+        endExclusive: String,
+    ): Flow<List<TransactionEntity>>
+
+    @Query(
+        """
+        SELECT CAST(substr(occurredOn, 6, 2) AS INTEGER) AS month,
+               COALESCE(SUM(amountMinor), 0) AS amountMinor
+        FROM transactions
+        WHERE type = 'expense'
+          AND occurredOn >= :startInclusive
+          AND occurredOn < :endExclusive
+        GROUP BY substr(occurredOn, 6, 2)
+        ORDER BY month ASC
+        """,
+    )
+    fun observeMonthlyExpenseTotals(
+        startInclusive: String,
+        endExclusive: String,
+    ): Flow<List<MonthlyExpenseTotal>>
 
     @Query("SELECT * FROM transactions WHERE id = :id LIMIT 1")
     suspend fun getById(id: String): TransactionEntity?
@@ -42,3 +63,8 @@ interface TransactionDao {
     @Query("SELECT id FROM transactions")
     suspend fun getAllIds(): List<String>
 }
+
+data class MonthlyExpenseTotal(
+    val month: Int,
+    val amountMinor: Long,
+)

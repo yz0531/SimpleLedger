@@ -6,6 +6,7 @@ import com.example.simpleledger.data.transfer.LedgerBackupStore
 import java.security.MessageDigest
 import java.time.Instant
 import java.time.ZoneId
+import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -37,6 +38,7 @@ class NutstoreBackupManager(
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val clock: () -> Long = System::currentTimeMillis,
     private val clientFactory: (NutstoreCredentials) -> NutstoreWebDavClient = ::NutstoreWebDavClient,
+    private val postRestoreMaintenance: suspend () -> Unit = {},
 ) {
     private val operationMutex = Mutex()
     private val mutableStatus = MutableStateFlow(NutstoreBackupStatus())
@@ -90,29 +92,41 @@ class NutstoreBackupManager(
         successMessage = null,
     ) {
         val credentials = requireCredentials()
-        withContext(ioDispatcher) {
+        val restored = withContext(ioDispatcher) {
             val client = clientFactory(credentials)
             client.ensureBackupDirectory()
             val latestFile = NutstoreBackupFiles.mostRecent(client.listBackupFiles())
                 ?: throw IllegalStateException("坚果云 backup 文件夹中还没有可恢复的备份")
             val backup = backupCodec.decodeBackup(client.download(latestFile))
             val result = backupStore.import(backup)
-            mutableStatus.value = NutstoreBackupStatus(
-                message = buildString {
-                    append("已从 ")
-                    append(latestFile)
-                    append(" 恢复：账目新增 ")
-                    append(result.insertedCount)
-                    append(" 条、更新 ")
-                    append(result.updatedCount)
-                    append(" 条；周期新增 ")
-                    append(result.recurringInsertedCount)
-                    append(" 条、更新 ")
-                    append(result.recurringUpdatedCount)
-                    append(" 条")
-                },
-            )
+            latestFile to result
         }
+        val maintenanceWarning = try {
+            postRestoreMaintenance()
+            null
+        } catch (exception: CancellationException) {
+            throw exception
+        } catch (exception: Exception) {
+            "；数据已恢复，但周期账单维护未完成，下次进入应用会自动重试"
+        }
+        val (latestFile, result) = restored
+        mutableStatus.value = NutstoreBackupStatus(
+            message = buildString {
+                append("已从 ")
+                append(latestFile)
+                append(" 恢复：账目新增 ")
+                append(result.insertedCount)
+                append(" 条、更新 ")
+                append(result.updatedCount)
+                append(" 条；周期新增 ")
+                append(result.recurringInsertedCount)
+                append(" 条、更新 ")
+                append(result.recurringUpdatedCount)
+                append(" 条")
+                append(maintenanceWarning.orEmpty())
+            },
+            isError = maintenanceWarning != null,
+        )
         true
     } ?: false
 
@@ -145,14 +159,39 @@ class NutstoreBackupManager(
                 val timestamp = clock()
                 val client = clientFactory(credentials)
                 client.ensureBackupDirectory()
+                val uploadedFile = NutstoreBackupFiles.automaticName(timestamp)
                 client.upload(
-                    NutstoreBackupFiles.automaticName(timestamp),
+                    uploadedFile,
                     backupCodec.encode(snapshot.transactions, snapshot.recurringRules),
                 )
-                val obsoleteFiles = NutstoreBackupFiles.filesToDelete(client.listBackupFiles())
-                obsoleteFiles.forEach(client::delete)
                 credentialStore.markBackupSucceeded(fingerprint, timestamp)
-                mutableStatus.value = NutstoreBackupStatus(message = "账本有变化，已自动备份到坚果云")
+                val cleanupFailures = mutableListOf<String>()
+                try {
+                    val obsoleteFiles = NutstoreBackupFiles.filesToDelete(
+                        remoteNames = client.listBackupFiles(),
+                        protectedNames = setOf(uploadedFile),
+                    )
+                    obsoleteFiles.forEach { obsoleteFile ->
+                        try {
+                            client.delete(obsoleteFile)
+                        } catch (exception: CancellationException) {
+                            throw exception
+                        } catch (exception: Exception) {
+                            cleanupFailures += obsoleteFile
+                        }
+                    }
+                } catch (exception: CancellationException) {
+                    throw exception
+                } catch (exception: Exception) {
+                    cleanupFailures += "旧备份列表"
+                }
+                mutableStatus.value = NutstoreBackupStatus(
+                    message = if (cleanupFailures.isEmpty()) {
+                        "账本有变化，已自动备份到坚果云"
+                    } else {
+                        "自动备份已上传；部分旧备份暂未清理，下次会继续处理"
+                    },
+                )
                 AutomaticBackupResult.BACKED_UP
             }
         } ?: AutomaticBackupResult.NOT_CONFIGURED
@@ -208,26 +247,64 @@ internal object BackupFingerprint {
 
 internal object NutstoreBackupFiles {
     private val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss-SSS")
-    private val automaticPattern = Regex("^auto_(\\d{4}-\\d{2}-\\d{2}_\\d{2}-\\d{2}-\\d{2}-\\d{3})\\.json$")
-    private val backupPattern = Regex("^(?:auto|manual)_(\\d{4}-\\d{2}-\\d{2}_\\d{2}-\\d{2}-\\d{2}-\\d{3})\\.json$")
+    private val automaticPattern = Regex(
+        "^auto_(\\d{4}-\\d{2}-\\d{2}_\\d{2}-\\d{2}-\\d{2}-\\d{3})(?:_e(\\d{1,19}))?\\.json$",
+    )
+    private val backupPattern = Regex(
+        "^(?:auto|manual)_(\\d{4}-\\d{2}-\\d{2}_\\d{2}-\\d{2}-\\d{2}-\\d{3})(?:_e(\\d{1,19}))?\\.json$",
+    )
 
-    fun automaticName(epochMs: Long, zoneId: ZoneId = ZoneId.systemDefault()): String =
-        "auto_${format(epochMs, zoneId)}.json"
+    fun automaticName(epochMs: Long, zoneId: ZoneId = ZoneOffset.UTC): String =
+        "auto_${format(epochMs, zoneId)}_e$epochMs.json"
 
-    fun manualName(epochMs: Long, zoneId: ZoneId = ZoneId.systemDefault()): String =
-        "manual_${format(epochMs, zoneId)}.json"
+    fun manualName(epochMs: Long, zoneId: ZoneId = ZoneOffset.UTC): String =
+        "manual_${format(epochMs, zoneId)}_e$epochMs.json"
 
-    fun filesToDelete(remoteNames: List<String>, keep: Int = 3): List<String> = remoteNames
-        .mapNotNull { name -> automaticPattern.matchEntire(name)?.groupValues?.get(1)?.let { it to name } }
-        .sortedByDescending { it.first }
-        .drop(keep.coerceAtLeast(0))
-        .map { it.second }
+    fun filesToDelete(
+        remoteNames: List<String>,
+        keep: Int = 3,
+        protectedNames: Set<String> = emptySet(),
+    ): List<String> {
+        val parsed = remoteNames.mapNotNull { name -> parse(name, automaticPattern) }.sortedDescending()
+        val keepCount = keep.coerceAtLeast(0)
+        val retained = linkedSetOf<String>()
+        parsed.filter { it.name in protectedNames }.take(keepCount).forEach { retained += it.name }
+        parsed.filterNot { it.name in retained }
+            .take((keepCount - retained.size).coerceAtLeast(0))
+            .forEach { retained += it.name }
+        return parsed.map { it.name }.filterNot { it in retained }
+    }
 
     fun mostRecent(remoteNames: List<String>): String? = remoteNames
-        .mapNotNull { name -> backupPattern.matchEntire(name)?.groupValues?.get(1)?.let { it to name } }
-        .maxByOrNull { it.first }
-        ?.second
+        .mapNotNull { name -> parse(name, backupPattern) }
+        .maxOrNull()
+        ?.name
 
     private fun format(epochMs: Long, zoneId: ZoneId): String =
         Instant.ofEpochMilli(epochMs).atZone(zoneId).format(formatter)
+
+    private fun parse(name: String, pattern: Regex): ParsedBackupFile? {
+        val match = pattern.matchEntire(name) ?: return null
+        return ParsedBackupFile(
+            name = name,
+            timestampText = match.groupValues[1],
+            epochMs = match.groupValues.getOrNull(2)?.takeIf(String::isNotEmpty)?.toLongOrNull(),
+        )
+    }
+
+    private data class ParsedBackupFile(
+        val name: String,
+        val timestampText: String,
+        val epochMs: Long?,
+    ) : Comparable<ParsedBackupFile> {
+        override fun compareTo(other: ParsedBackupFile): Int {
+            if ((epochMs != null) != (other.epochMs != null)) return if (epochMs != null) 1 else -1
+            val timestampComparison = if (epochMs != null && other.epochMs != null) {
+                epochMs.compareTo(other.epochMs)
+            } else {
+                timestampText.compareTo(other.timestampText)
+            }
+            return timestampComparison.takeIf { it != 0 } ?: name.compareTo(other.name)
+        }
+    }
 }

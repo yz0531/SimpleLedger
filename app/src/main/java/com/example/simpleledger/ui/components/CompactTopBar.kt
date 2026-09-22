@@ -40,7 +40,7 @@ fun CompactTopBar(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(if (subtitle == null) 48.dp else 54.dp)
+                    .height(if (subtitle == null) 46.dp else 50.dp)
                     .padding(start = if (navigationIcon == null) 20.dp else 4.dp, end = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
