@@ -37,8 +37,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -54,6 +52,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.simpleledger.data.backup.NutstoreBackupManager
+import com.example.simpleledger.ui.components.CompactTopBar
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -80,14 +79,10 @@ fun NutstoreBackupScreen(
         modifier = modifier,
         containerColor = Color.Transparent,
         topBar = {
-            TopAppBar(
-                title = { Text("坚果云备份") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "返回")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
+            CompactTopBar(
+                title = "坚果云备份",
+                navigationIcon = Icons.AutoMirrored.Rounded.ArrowBack,
+                onNavigationClick = onBack,
             )
         },
     ) { innerPadding ->
@@ -95,7 +90,7 @@ fun NutstoreBackupScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
-            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 40.dp),
+            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 6.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             item {

@@ -28,9 +28,6 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -49,12 +46,12 @@ import com.example.simpleledger.domain.model.RecurringRule
 import com.example.simpleledger.domain.model.TransactionType
 import com.example.simpleledger.domain.repository.RecurringRuleRepository
 import com.example.simpleledger.ui.components.categoryIcon
+import com.example.simpleledger.ui.components.CompactTopBar
 import com.example.simpleledger.ui.components.formatMoney
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RecurringScreen(
     repository: RecurringRuleRepository,
@@ -79,18 +76,9 @@ fun RecurringScreen(
         containerColor = Color.Transparent,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text("周期记账")
-                        Text(
-                            "固定开销，按时自动记录",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
+            CompactTopBar(
+                title = "周期记账",
+                subtitle = "固定开销，按时自动记录",
             )
         },
         floatingActionButton = {
@@ -106,7 +94,7 @@ fun RecurringScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
-            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 116.dp),
+            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 88.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             item {

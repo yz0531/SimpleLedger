@@ -38,7 +38,6 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -61,6 +60,7 @@ import com.example.simpleledger.domain.model.TransactionType
 import com.example.simpleledger.domain.repository.LedgerRepository
 import com.example.simpleledger.ui.components.amountInput
 import com.example.simpleledger.ui.components.CategoryPicker
+import com.example.simpleledger.ui.components.CompactTopBar
 import com.example.simpleledger.ui.components.formatEditorDay
 import com.example.simpleledger.ui.components.parseAmountMinor
 import java.time.Instant
@@ -128,19 +128,22 @@ fun EditorScreen(
         val initialMillis = runCatching {
             LocalDate.parse(occurredOn).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
         }.getOrNull()
-        val datePickerState = rememberDatePickerState(initialSelectedDateMillis = initialMillis)
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = null,
+            initialDisplayedMonthMillis = initialMillis,
+        )
+        LaunchedEffect(datePickerState.selectedDateMillis) {
+            datePickerState.selectedDateMillis?.let { millis ->
+                occurredOn = Instant.ofEpochMilli(millis)
+                    .atZone(ZoneOffset.UTC)
+                    .toLocalDate()
+                    .toString()
+                showDatePicker = false
+            }
+        }
         DatePickerDialog(
             onDismissRequest = { showDatePicker = false },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        datePickerState.selectedDateMillis?.let { millis ->
-                            occurredOn = Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC).toLocalDate().toString()
-                        }
-                        showDatePicker = false
-                    },
-                ) { Text("确定") }
-            },
+            confirmButton = {},
             dismissButton = {
                 TextButton(onClick = { showDatePicker = false }) { Text("取消") }
             },
@@ -179,13 +182,10 @@ fun EditorScreen(
         modifier = modifier,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
-            TopAppBar(
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "返回")
-                    }
-                },
-                title = { Text(if (isEditing) "编辑账目" else if (expenseOnly) "记一笔花销" else "记一笔") },
+            CompactTopBar(
+                title = if (isEditing) "编辑账目" else if (expenseOnly) "记一笔花销" else "记一笔",
+                navigationIcon = Icons.AutoMirrored.Rounded.ArrowBack,
+                onNavigationClick = onBack,
                 actions = {
                     if (isEditing) {
                         IconButton(
@@ -219,7 +219,7 @@ fun EditorScreen(
                     .padding(innerPadding)
                     .verticalScroll(rememberScrollState())
                     .imePadding()
-                    .padding(PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 36.dp)),
+                    .padding(PaddingValues(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 24.dp)),
             ) {
                 if (!expenseOnly) {
                     Text("类型", style = MaterialTheme.typography.titleMedium)
@@ -249,7 +249,7 @@ fun EditorScreen(
                             )
                         }
                     }
-                    Spacer(Modifier.height(22.dp))
+                    Spacer(Modifier.height(18.dp))
                 }
 
                 Surface(
@@ -287,7 +287,7 @@ fun EditorScreen(
                     }
                 }
 
-                Spacer(Modifier.height(22.dp))
+                Spacer(Modifier.height(18.dp))
                 Text("分类", style = MaterialTheme.typography.titleMedium)
                 CategoryPicker(
                     type = type,
@@ -296,7 +296,7 @@ fun EditorScreen(
                     modifier = Modifier.padding(top = 8.dp),
                 )
 
-                Spacer(Modifier.height(22.dp))
+                Spacer(Modifier.height(18.dp))
                 Text("日期", style = MaterialTheme.typography.titleMedium)
                 OutlinedButton(
                     modifier = Modifier
@@ -311,7 +311,7 @@ fun EditorScreen(
                     )
                 }
 
-                Spacer(Modifier.height(22.dp))
+                Spacer(Modifier.height(18.dp))
                 OutlinedTextField(
                     value = note,
                     onValueChange = { if (it.length <= MAX_NOTE_LENGTH) note = it },
@@ -324,11 +324,11 @@ fun EditorScreen(
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                 )
 
-                Spacer(Modifier.height(28.dp))
+                Spacer(Modifier.height(22.dp))
                 Button(
                     modifier = Modifier
                         .fillMaxWidth()
-                    .height(58.dp),
+                    .height(54.dp),
                     enabled = !isSaving,
                     onClick = {
                         val amountMinor = parseAmountMinor(amount)

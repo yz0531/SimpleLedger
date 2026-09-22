@@ -1,6 +1,7 @@
 package com.example.simpleledger.ui.home
 
 import androidx.compose.foundation.clickable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -125,10 +126,14 @@ fun HomeScreen(
                     canGoPrevious = page > 0,
                     canGoNext = page < MONTH_PAGE_COUNT - 1,
                     onPreviousMonth = {
-                        scope.launch { pagerState.animateScrollToPage(page - 1) }
+                        scope.launch {
+                            pagerState.animateScrollToPage(page - 1, animationSpec = tween(210))
+                        }
                     },
                     onNextMonth = {
-                        scope.launch { pagerState.animateScrollToPage(page + 1) }
+                        scope.launch {
+                            pagerState.animateScrollToPage(page + 1, animationSpec = tween(210))
+                        }
                     },
                     onChooseMonth = { monthPickerTarget = month },
                 )
@@ -146,7 +151,9 @@ fun HomeScreen(
                 val targetPage = CURRENT_MONTH_PAGE + monthOffset
                 monthPickerTarget = null
                 if (targetPage in 0 until MONTH_PAGE_COUNT) {
-                    scope.launch { pagerState.animateScrollToPage(targetPage) }
+                    scope.launch {
+                        pagerState.animateScrollToPage(targetPage, animationSpec = tween(210))
+                    }
                 }
             },
         )
@@ -202,7 +209,7 @@ private fun MonthLedgerPage(
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 116.dp),
+        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 0.dp, bottom = 88.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         item {
@@ -217,7 +224,7 @@ private fun MonthLedgerPage(
                 onPreviousMonth = onPreviousMonth,
                 onNextMonth = onNextMonth,
                 onChooseMonth = onChooseMonth,
-                modifier = Modifier.padding(top = 10.dp, bottom = 6.dp),
+                modifier = Modifier.padding(top = 2.dp, bottom = 2.dp),
             )
         }
         if (!expenseOnly) {

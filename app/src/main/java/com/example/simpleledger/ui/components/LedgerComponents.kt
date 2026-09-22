@@ -21,9 +21,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.ChevronLeft
 import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -54,18 +54,21 @@ fun MonthSummaryCard(
     val colors = MaterialTheme.colorScheme
     Card(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(28.dp),
+        shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = Color.Transparent),
     ) {
         Column(
             modifier = Modifier
                 .background(
                     Brush.linearGradient(
-                        listOf(colors.primary, colors.tertiary),
+                        listOf(
+                            colors.primary.copy(alpha = 0.92f),
+                            colors.tertiary.copy(alpha = 0.84f),
+                        ),
                     ),
                 )
                 .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 16.dp),
+                .padding(horizontal = 12.dp, vertical = 12.dp),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -78,13 +81,14 @@ fun MonthSummaryCard(
                         tint = colors.onPrimary,
                     )
                 }
-                Column(
+                Row(
                     modifier = Modifier
                         .weight(1f)
                         .clip(RoundedCornerShape(16.dp))
                         .clickable(onClick = onChooseMonth)
-                        .padding(vertical = 5.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
+                        .padding(vertical = 7.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
                         text = monthLabel,
@@ -92,20 +96,14 @@ fun MonthSummaryCard(
                         fontWeight = FontWeight.Bold,
                         color = colors.onPrimary,
                     )
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            Icons.Rounded.CalendarMonth,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp),
-                            tint = colors.onPrimary.copy(alpha = 0.76f),
-                        )
-                        Text(
-                            text = if (expenseOnly) "本月花销 · 点击选择年月" else "本月结余 · 点击选择年月",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = colors.onPrimary.copy(alpha = 0.76f),
-                            modifier = Modifier.padding(start = 5.dp),
-                        )
-                    }
+                    Icon(
+                        Icons.Rounded.KeyboardArrowDown,
+                        contentDescription = "选择年月",
+                        modifier = Modifier
+                            .padding(start = 2.dp)
+                            .size(18.dp),
+                        tint = colors.onPrimary.copy(alpha = 0.82f),
+                    )
                 }
                 IconButton(onClick = onNextMonth, enabled = canGoNext) {
                     Icon(
@@ -121,8 +119,8 @@ fun MonthSummaryCard(
                 color = colors.onPrimary,
                 modifier = Modifier.padding(
                     start = 10.dp,
-                    top = 8.dp,
-                    bottom = if (expenseOnly) 10.dp else 20.dp,
+                    top = 4.dp,
+                    bottom = if (expenseOnly) 6.dp else 14.dp,
                 ),
             )
             if (!expenseOnly) {

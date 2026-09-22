@@ -2,7 +2,16 @@ package com.example.simpleledger.ui
 
 import android.net.Uri
 import android.util.Log
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ReceiptLong
@@ -25,6 +34,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -46,6 +56,7 @@ import com.example.simpleledger.ui.home.HomeScreen
 import com.example.simpleledger.ui.recurring.RecurringEditorScreen
 import com.example.simpleledger.ui.recurring.RecurringScreen
 import com.example.simpleledger.ui.settings.SettingsScreen
+import com.example.simpleledger.ui.settings.SkinPickerScreen
 import com.example.simpleledger.ui.statistics.StatisticsScreen
 import com.example.simpleledger.ui.theme.SkinBackground
 import com.example.simpleledger.ui.transfer.TransferScreen
@@ -64,6 +75,7 @@ private object Routes {
     const val RECURRING_EDITOR_WITH_ID = "recurring-editor/{ruleId}"
     const val TRANSFER = "transfer"
     const val NUTSTORE_BACKUP = "nutstore-backup"
+    const val SKIN_PICKER = "skin-picker"
 
     fun editor(transactionId: String): String = "editor/${Uri.encode(transactionId)}"
     fun recurringEditor(ruleId: String): String = "recurring-editor/${Uri.encode(ruleId)}"
@@ -145,21 +157,33 @@ fun LedgerApp(
             containerColor = Color.Transparent,
             bottomBar = {
                 if (showBottomBar) {
-                    NavigationBar(
-                        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.88f))
+                            .navigationBarsPadding(),
                     ) {
-                        topLevelDestinations.forEach { destination ->
-                            NavigationBarItem(
-                                selected = currentRoute == destination.route,
-                                onClick = { navController.navigateTopLevel(destination.route) },
-                                icon = {
-                                    Icon(
-                                        imageVector = destination.icon,
-                                        contentDescription = destination.label,
-                                    )
-                                },
-                                label = { Text(destination.label) },
-                            )
+                        NavigationBar(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(64.dp),
+                            containerColor = Color.Transparent,
+                            tonalElevation = 0.dp,
+                            windowInsets = WindowInsets(0, 0, 0, 0),
+                        ) {
+                            topLevelDestinations.forEach { destination ->
+                                NavigationBarItem(
+                                    selected = currentRoute == destination.route,
+                                    onClick = { navController.navigateTopLevel(destination.route) },
+                                    icon = {
+                                        Icon(
+                                            imageVector = destination.icon,
+                                            contentDescription = destination.label,
+                                        )
+                                    },
+                                    label = { Text(destination.label) },
+                                )
+                            }
                         }
                     }
                 }
@@ -177,6 +201,10 @@ fun LedgerApp(
                 navController = navController,
                 startDestination = Routes.HOME,
                 modifier = navigationModifier,
+                enterTransition = { fadeIn(animationSpec = tween(120)) },
+                exitTransition = { fadeOut(animationSpec = tween(90)) },
+                popEnterTransition = { fadeIn(animationSpec = tween(120)) },
+                popExitTransition = { fadeOut(animationSpec = tween(90)) },
             ) {
                 composable(Routes.HOME) {
                     HomeScreen(
@@ -202,10 +230,16 @@ fun LedgerApp(
                         mode = mode,
                         skin = skin,
                         onModeChanged = container.preferences::setMode,
-                        onSkinChanged = container.preferences::setSkin,
-                        onRecurring = { navController.navigateTopLevel(Routes.RECURRING) },
+                        onSkinPicker = { navController.navigate(Routes.SKIN_PICKER) },
                         onTransfer = { navController.navigate(Routes.TRANSFER) },
                         onNutstoreBackup = { navController.navigate(Routes.NUTSTORE_BACKUP) },
+                    )
+                }
+                composable(Routes.SKIN_PICKER) {
+                    SkinPickerScreen(
+                        selectedSkin = skin,
+                        onSkinSelected = container.preferences::setSkin,
+                        onBack = { navController.popBackStack() },
                     )
                 }
                 composable(Routes.EDITOR) {

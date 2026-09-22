@@ -125,6 +125,42 @@ private fun LedgerSkin.lightScheme(): ColorScheme = when (this) {
     LedgerSkin.SUNSET -> SunsetLight
     LedgerSkin.OCEAN -> OceanLight
     LedgerSkin.LAVENDER -> LavenderLight
+    LedgerSkin.FOREST -> JadeLight.copy(
+        primary = Color(0xFF176340),
+        primaryContainer = Color(0xFFBCECCF),
+        onPrimaryContainer = Color(0xFF07351F),
+        tertiary = Color(0xFF416B51),
+    )
+    LedgerSkin.AMBER -> SunsetLight.copy(
+        primary = Color(0xFF98500F),
+        primaryContainer = Color(0xFFFFD9B5),
+        onPrimaryContainer = Color(0xFF4A2500),
+        secondary = Color(0xFF7A5D18),
+    )
+    LedgerSkin.ALPINE -> OceanLight.copy(
+        primary = Color(0xFF25667A),
+        primaryContainer = Color(0xFFBDEAF4),
+        onPrimaryContainer = Color(0xFF063740),
+        tertiary = Color(0xFF4D6686),
+    )
+    LedgerSkin.ROSE -> LavenderLight.copy(
+        primary = Color(0xFF9A4761),
+        primaryContainer = Color(0xFFFFD9E2),
+        onPrimaryContainer = Color(0xFF54142B),
+        tertiary = Color(0xFF7A5B83),
+    )
+    LedgerSkin.NIGHT -> OceanLight.copy(
+        primary = Color(0xFF305E83),
+        primaryContainer = Color(0xFFCBE4FF),
+        onPrimaryContainer = Color(0xFF0B3552),
+        secondary = Color(0xFF566179),
+    )
+    LedgerSkin.AURORA -> LavenderLight.copy(
+        primary = Color(0xFF5E5A9D),
+        primaryContainer = Color(0xFFE4DFFF),
+        onPrimaryContainer = Color(0xFF302A69),
+        tertiary = Color(0xFF457369),
+    )
 }
 
 @Composable

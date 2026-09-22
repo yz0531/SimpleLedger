@@ -84,9 +84,10 @@ object RecurringPostingPlanner {
         return when (frequency) {
             RecurringFrequency.DAILY -> true
             RecurringFrequency.WEEKLY ->
-                ChronoUnit.DAYS.between(startDate, candidateDate) % 7L == 0L
+                candidateDate.dayOfWeek == startDate.dayOfWeek
             RecurringFrequency.BIWEEKLY ->
-                ChronoUnit.DAYS.between(startDate, candidateDate) % 14L == 0L
+                candidateDate.dayOfWeek == startDate.dayOfWeek &&
+                    ChronoUnit.WEEKS.between(startDate, candidateDate) % 2L == 0L
             RecurringFrequency.MONTHLY -> {
                 val candidateMonth = YearMonth.from(candidateDate)
                 val expectedDay = min(startDate.dayOfMonth, candidateMonth.lengthOfMonth())
@@ -110,19 +111,20 @@ object RecurringPostingPlanner {
         if (currentNextExecutionDate.isAfter(afterDate)) return currentNextExecutionDate
 
         return when (frequency) {
-            RecurringFrequency.DAILY,
-            RecurringFrequency.WEEKLY,
-            RecurringFrequency.BIWEEKLY,
-            -> {
-                val intervalDays = when (frequency) {
-                    RecurringFrequency.DAILY -> 1L
-                    RecurringFrequency.WEEKLY -> 7L
-                    RecurringFrequency.BIWEEKLY -> 14L
-                    RecurringFrequency.MONTHLY -> error("已在外层分支处理")
-                }
+            RecurringFrequency.DAILY -> {
                 val elapsedDays = ChronoUnit.DAYS.between(currentNextExecutionDate, afterDate)
-                currentNextExecutionDate.plusDays((elapsedDays / intervalDays + 1L) * intervalDays)
+                currentNextExecutionDate.plusDays(elapsedDays + 1L)
             }
+            RecurringFrequency.WEEKLY -> firstWeeklyOccurrenceAfter(
+                currentNextExecutionDate = currentNextExecutionDate,
+                afterDate = afterDate,
+                intervalWeeks = 1L,
+            )
+            RecurringFrequency.BIWEEKLY -> firstWeeklyOccurrenceAfter(
+                currentNextExecutionDate = currentNextExecutionDate,
+                afterDate = afterDate,
+                intervalWeeks = 2L,
+            )
             RecurringFrequency.MONTHLY -> {
                 var targetMonth = YearMonth.from(afterDate)
                 var candidate = targetMonth.atDay(min(anchorStartDate.dayOfMonth, targetMonth.lengthOfMonth()))
@@ -141,6 +143,21 @@ object RecurringPostingPlanner {
     }
 
     const val MAX_CATCH_UP_OCCURRENCES = 3_660
+
+    private fun firstWeeklyOccurrenceAfter(
+        currentNextExecutionDate: LocalDate,
+        afterDate: LocalDate,
+        intervalWeeks: Long,
+    ): LocalDate {
+        val elapsedWeeks = ChronoUnit.WEEKS.between(currentNextExecutionDate, afterDate)
+        var candidate = currentNextExecutionDate.plusWeeks(
+            (elapsedWeeks / intervalWeeks).coerceAtLeast(0L) * intervalWeeks,
+        )
+        if (!candidate.isAfter(afterDate)) {
+            candidate = candidate.plusWeeks(intervalWeeks)
+        }
+        return candidate
+    }
 }
 
 class RecurringCatchUpLimitExceededException(message: String) : IllegalArgumentException(message)

@@ -22,6 +22,12 @@ internal fun LedgerSkin.backgroundResId(): Int = when (this) {
     LedgerSkin.SUNSET -> R.drawable.skin_sunset
     LedgerSkin.OCEAN -> R.drawable.skin_ocean
     LedgerSkin.LAVENDER -> R.drawable.skin_lavender
+    LedgerSkin.FOREST -> R.drawable.skin_forest
+    LedgerSkin.AMBER -> R.drawable.skin_amber
+    LedgerSkin.ALPINE -> R.drawable.skin_alpine
+    LedgerSkin.ROSE -> R.drawable.skin_rose
+    LedgerSkin.NIGHT -> R.drawable.skin_night
+    LedgerSkin.AURORA -> R.drawable.skin_aurora
 }
 
 @Composable
@@ -45,16 +51,17 @@ fun SkinBackground(
                     if (darkTheme) {
                         Brush.verticalGradient(
                             listOf(
-                                Color(0xD9141817),
-                                Color(0xE6111514),
+                                Color(0x73141817),
+                                Color(0x99111514),
+                                Color(0xB3111514),
                             ),
                         )
                     } else {
                         Brush.verticalGradient(
                             listOf(
-                                Color.White.copy(alpha = 0.76f),
-                                Color.White.copy(alpha = 0.88f),
-                                Color(0xFFFFFBF3).copy(alpha = 0.92f),
+                                Color.White.copy(alpha = 0.46f),
+                                Color.White.copy(alpha = 0.56f),
+                                Color(0xFFFFFBF3).copy(alpha = 0.64f),
                             ),
                         )
                     },

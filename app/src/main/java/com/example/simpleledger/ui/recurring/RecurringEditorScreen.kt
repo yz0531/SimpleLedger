@@ -38,7 +38,6 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -62,12 +61,15 @@ import com.example.simpleledger.domain.model.TransactionType
 import com.example.simpleledger.domain.recurring.RecurringPostingPlanner
 import com.example.simpleledger.domain.repository.RecurringRuleRepository
 import com.example.simpleledger.ui.components.CategoryPicker
+import com.example.simpleledger.ui.components.CompactTopBar
 import com.example.simpleledger.ui.components.amountInput
 import com.example.simpleledger.ui.components.formatEditorDay
 import com.example.simpleledger.ui.components.parseAmountMinor
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
+import java.time.format.TextStyle
+import java.util.Locale
 import java.util.UUID
 import kotlinx.coroutines.launch
 
@@ -135,23 +137,23 @@ fun RecurringEditorScreen(
         val initialMillis = runCatching {
             LocalDate.parse(startDate).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
         }.getOrNull()
-        val datePickerState = rememberDatePickerState(initialSelectedDateMillis = initialMillis)
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = null,
+            initialDisplayedMonthMillis = initialMillis,
+        )
+        LaunchedEffect(datePickerState.selectedDateMillis) {
+            datePickerState.selectedDateMillis?.let { millis ->
+                startDate = Instant.ofEpochMilli(millis)
+                    .atZone(ZoneOffset.UTC)
+                    .toLocalDate()
+                    .toString()
+                dateError = null
+                showDatePicker = false
+            }
+        }
         DatePickerDialog(
             onDismissRequest = { showDatePicker = false },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        datePickerState.selectedDateMillis?.let { millis ->
-                            startDate = Instant.ofEpochMilli(millis)
-                                .atZone(ZoneOffset.UTC)
-                                .toLocalDate()
-                                .toString()
-                            dateError = null
-                        }
-                        showDatePicker = false
-                    },
-                ) { Text("确定") }
-            },
+            confirmButton = {},
             dismissButton = { TextButton(onClick = { showDatePicker = false }) { Text("取消") } },
         ) { DatePicker(state = datePickerState) }
     }
@@ -184,13 +186,10 @@ fun RecurringEditorScreen(
         modifier = modifier,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
-            TopAppBar(
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "返回")
-                    }
-                },
-                title = { Text(if (isEditing) "编辑周期账单" else "新建周期账单") },
+            CompactTopBar(
+                title = if (isEditing) "编辑周期账单" else "新建周期账单",
+                navigationIcon = Icons.AutoMirrored.Rounded.ArrowBack,
+                onNavigationClick = onBack,
                 actions = {
                     if (isEditing) {
                         IconButton(enabled = !isSaving, onClick = { showDeleteDialog = true }) {
@@ -219,7 +218,7 @@ fun RecurringEditorScreen(
                     .padding(innerPadding)
                     .verticalScroll(rememberScrollState())
                     .imePadding()
-                    .padding(PaddingValues(start = 20.dp, end = 20.dp, top = 10.dp, bottom = 36.dp)),
+                    .padding(PaddingValues(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 24.dp)),
             ) {
                 if (!expenseOnly) {
                     SectionTitle("类型")
@@ -249,7 +248,7 @@ fun RecurringEditorScreen(
                             )
                         }
                     }
-                    Spacer(Modifier.height(20.dp))
+                    Spacer(Modifier.height(18.dp))
                 }
 
                 Surface(
@@ -283,7 +282,7 @@ fun RecurringEditorScreen(
                     }
                 }
 
-                Spacer(Modifier.height(22.dp))
+                Spacer(Modifier.height(18.dp))
                 SectionTitle("分类")
                 CategoryPicker(
                     type = type,
@@ -292,7 +291,7 @@ fun RecurringEditorScreen(
                     modifier = Modifier.padding(top = 8.dp),
                 )
 
-                Spacer(Modifier.height(22.dp))
+                Spacer(Modifier.height(18.dp))
                 SectionTitle("重复频率")
                 Column(
                     modifier = Modifier.padding(top = 8.dp),
@@ -320,8 +319,14 @@ fun RecurringEditorScreen(
                         }
                     }
                 }
+                Text(
+                    text = frequency.scheduleDescription(startDate),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 6.dp),
+                )
 
-                Spacer(Modifier.height(22.dp))
+                Spacer(Modifier.height(18.dp))
                 SectionTitle("首次执行")
                 OutlinedButton(
                     modifier = Modifier
@@ -341,7 +346,7 @@ fun RecurringEditorScreen(
                     )
                 }
 
-                Spacer(Modifier.height(22.dp))
+                Spacer(Modifier.height(18.dp))
                 OutlinedTextField(
                     value = note,
                     onValueChange = { if (it.length <= MAX_RECURRING_NOTE_LENGTH) note = it },
@@ -354,11 +359,11 @@ fun RecurringEditorScreen(
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                 )
 
-                Spacer(Modifier.height(28.dp))
+                Spacer(Modifier.height(22.dp))
                 Button(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(58.dp),
+                        .height(54.dp),
                     enabled = !isSaving,
                     onClick = {
                         val amountMinor = parseAmountMinor(amount)
@@ -431,4 +436,21 @@ fun RecurringEditorScreen(
 @Composable
 private fun SectionTitle(text: String) {
     Text(text, style = MaterialTheme.typography.titleMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
+}
+
+private fun RecurringFrequency.scheduleDescription(startDate: String): String {
+    val date = LocalDate.parse(startDate)
+    return when (this) {
+        RecurringFrequency.DAILY -> "从所选日期起，每个自然日记一笔"
+        RecurringFrequency.WEEKLY -> {
+            val weekday = date.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.CHINA)
+            "从所选日期起，每周${weekday}记一笔"
+        }
+        RecurringFrequency.BIWEEKLY -> {
+            val weekday = date.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.CHINA)
+            "从所选日期起，每两周的${weekday}记一笔"
+        }
+        RecurringFrequency.MONTHLY ->
+            "每个自然月的 ${date.dayOfMonth} 日记一笔；短月自动取月末"
+    }
 }

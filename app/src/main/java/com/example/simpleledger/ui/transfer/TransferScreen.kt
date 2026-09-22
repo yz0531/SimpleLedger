@@ -25,9 +25,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -35,7 +33,6 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -50,6 +47,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.simpleledger.data.transfer.BackupValidationException
 import com.example.simpleledger.data.transfer.DataTransferManager
+import com.example.simpleledger.ui.components.CompactTopBar
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.CancellationException
@@ -63,7 +61,6 @@ private enum class TransferOperation {
     IMPORT_JSON,
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TransferScreen(
     transferManager: DataTransferManager,
@@ -172,13 +169,10 @@ fun TransferScreen(
         modifier = modifier,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
-            TopAppBar(
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "返回")
-                    }
-                },
-                title = { Text("数据管理") },
+            CompactTopBar(
+                title = "数据管理",
+                navigationIcon = Icons.AutoMirrored.Rounded.ArrowBack,
+                onNavigationClick = onBack,
             )
         },
     ) { innerPadding ->
@@ -189,7 +183,7 @@ fun TransferScreen(
         ) {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(20.dp),
+                contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 6.dp, bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 item {

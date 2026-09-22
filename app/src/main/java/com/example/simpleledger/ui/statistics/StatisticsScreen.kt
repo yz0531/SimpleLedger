@@ -17,13 +17,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -47,9 +44,9 @@ import com.example.simpleledger.domain.model.LedgerTransaction
 import com.example.simpleledger.domain.model.MonthlyExpense
 import com.example.simpleledger.domain.model.YearlyExpenseStatistics
 import com.example.simpleledger.ui.components.formatMoney
+import com.example.simpleledger.ui.components.CompactTopBar
 import java.time.Year
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StatisticsScreen(
     transactions: List<LedgerTransaction>,
@@ -65,20 +62,9 @@ fun StatisticsScreen(
         modifier = modifier,
         containerColor = Color.Transparent,
         topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text("年度统计")
-                        Text(
-                            "看清每个月的花销变化",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Transparent,
-                ),
+            CompactTopBar(
+                title = "年度统计",
+                subtitle = "看清每个月的花销变化",
             )
         },
     ) { innerPadding ->
@@ -86,7 +72,7 @@ fun StatisticsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
-            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 40.dp),
+            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             item {

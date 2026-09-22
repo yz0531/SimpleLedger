@@ -50,6 +50,27 @@ class RecurringPostingPlannerTest {
     }
 
     @Test
+    fun `weekly schedules stay on the selected weekday after a long pause`() {
+        val weekly = RecurringPostingPlanner.firstOccurrenceAfter(
+            currentNextExecutionDate = LocalDate.parse("2026-01-07"),
+            afterDate = LocalDate.parse("2026-09-21"),
+            frequency = RecurringFrequency.WEEKLY,
+            anchorStartDate = LocalDate.parse("2026-01-07"),
+        )
+        val biweekly = RecurringPostingPlanner.firstOccurrenceAfter(
+            currentNextExecutionDate = LocalDate.parse("2026-01-07"),
+            afterDate = LocalDate.parse("2026-09-21"),
+            frequency = RecurringFrequency.BIWEEKLY,
+            anchorStartDate = LocalDate.parse("2026-01-07"),
+        )
+
+        assertEquals(LocalDate.parse("2026-09-23"), weekly)
+        assertEquals(LocalDate.parse("2026-09-30"), biweekly)
+        assertEquals(LocalDate.parse("2026-01-07").dayOfWeek, weekly.dayOfWeek)
+        assertEquals(LocalDate.parse("2026-01-07").dayOfWeek, biweekly.dayOfWeek)
+    }
+
+    @Test
     fun `monthly rule remains anchored after a short month`() {
         val january = LocalDate.parse("2025-01-31")
         val february = RecurringPostingPlanner.nextOccurrence(
