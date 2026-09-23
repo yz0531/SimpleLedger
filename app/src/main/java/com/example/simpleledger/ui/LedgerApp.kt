@@ -141,7 +141,7 @@ fun LedgerApp(
     LaunchedEffect(foregroundGeneration) {
         if (foregroundGeneration == 0) return@LaunchedEffect
         try {
-            container.maintainImportedData()
+            container.processPendingRecurringTransactions()
             container.nutstoreBackupManager.automaticBackupIfChanged()
         } catch (exception: CancellationException) {
             throw exception
@@ -309,7 +309,7 @@ fun LedgerApp(
                 composable(Routes.TRANSFER) {
                     TransferScreen(
                         transferManager = container.transferManager,
-                        onImportCompleted = container::maintainImportedData,
+                        onImportCompleted = container::processPendingRecurringTransactions,
                         onBack = { navController.popBackStack() },
                     )
                 }

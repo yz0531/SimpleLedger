@@ -1,6 +1,5 @@
 package com.example.simpleledger.data.recurring
 
-import android.content.Context
 import androidx.room.withTransaction
 import com.example.simpleledger.data.local.LedgerDatabase
 import com.example.simpleledger.data.local.toDomain
@@ -104,9 +103,6 @@ class RecurringTransactionProcessor internal constructor(
         }
 
     companion object {
-        fun create(context: Context): RecurringTransactionProcessor =
-            create(LedgerDatabase.getInstance(context.applicationContext))
-
         fun create(database: LedgerDatabase): RecurringTransactionProcessor =
             RecurringTransactionProcessor(RoomRecurringProcessingStore(database))
     }

@@ -4,7 +4,7 @@
 
 应用使用 Kotlin、Jetpack Compose 和 Material 3 构建，最低支持 Android 8.0（API 26）。核心记账功能完全离线；只有用户主动配置坚果云后，应用才会访问网络进行 WebDAV 备份。
 
-当前稳定版本为 `v1.2.1`，安装包可在 [GitHub Releases](https://github.com/yz0531/SimpleLedger/releases) 下载。
+当前稳定版本为 `v1.2.2`，安装包可在 [GitHub Releases](https://github.com/yz0531/SimpleLedger/releases) 下载。
 
 ## 设计特点
 
@@ -56,7 +56,7 @@
 - 每两周：以开始日期为锚点，每两个自然周的相同星期记录一笔
 - 每月：每个自然月的对应日期记录一笔；如果当月没有该日期，则使用当月最后一天
 
-周期规则不是简单按固定天数累加。应用会保存自然日历锚点，并在后台或下次打开应用时补记已经到期的账目。规则可以随时暂停、恢复、编辑或删除，删除规则不会移除此前已经生成的账目。
+周期规则不是简单按固定天数累加。应用会保存自然日历锚点，并在每次进入应用时补记已经到期的账目。每条规则与执行日期会生成固定记录 ID，因此重复进入应用不会重复记账。规则可以随时暂停、恢复、编辑或删除，删除规则不会移除此前已经生成的账目。
 
 ### 年度统计
 
@@ -128,7 +128,6 @@ JSON 备份包含账目和周期规则，适合设备迁移或完整恢复。
 - Navigation Compose 2.9.0
 - Lifecycle 2.9.0
 - Room 2.7.1 + KSP 2.1.21-2.0.1
-- WorkManager 2.10.1
 - kotlinx.serialization 1.8.1
 - OkHttp 4.12.0
 - Android Gradle Plugin 8.10.1 / Gradle 8.14.3

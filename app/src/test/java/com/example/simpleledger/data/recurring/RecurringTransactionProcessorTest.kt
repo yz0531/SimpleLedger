@@ -121,6 +121,32 @@ class RecurringTransactionProcessorTest {
     }
 
     @Test
+    fun `restoring an older rule state does not duplicate generated transactions`() = runBlocking {
+        val restoredRule = rule(
+            id = "daily-backup",
+            frequency = RecurringFrequency.DAILY,
+            startDate = "2026-09-20",
+            nextExecutionDate = "2026-09-20",
+        )
+        val store = FakeStore(rules = mutableListOf(restoredRule))
+        val processor = RecurringTransactionProcessor(
+            store = store,
+            todayProvider = { LocalDate.parse("2026-09-21") },
+            clock = { 5_000L },
+        )
+
+        val first = processor.processDue()
+        store.rules[0] = restoredRule // Simulate importing the same older backup again.
+        val afterRestore = processor.processDue()
+
+        assertEquals(2, first.createdTransactionCount)
+        assertEquals(0, afterRestore.createdTransactionCount)
+        assertEquals(2, afterRestore.skippedDuplicateCount)
+        assertEquals(2, store.transactions.size)
+        assertEquals("2026-09-22", store.rules.single().nextExecutionDate)
+    }
+
+    @Test
     fun `failure rolls the whole processing transaction back`() = runBlocking {
         val store = FakeStore(
             rules = mutableListOf(
