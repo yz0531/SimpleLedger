@@ -7,6 +7,7 @@ import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.platform.app.InstrumentationRegistry
+import com.example.simpleledger.data.transfer.LedgerBackupStore
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -77,6 +78,41 @@ class LedgerDatabaseMigrationTest {
             val totals = dao.observeMonthlyExpenseTotals("2026-01-01", "2027-01-01").first()
             assertEquals(listOf(1, 2), totals.map { it.month })
             assertEquals(listOf(1_200L, 2_300L), totals.map { it.amountMinor })
+        } finally {
+            database.close()
+        }
+    }
+
+    @Test
+    fun clearAllRemovesTransactionsAndRecurringRules() = runBlocking {
+        val database = Room.inMemoryDatabaseBuilder(
+            ApplicationProvider.getApplicationContext<Context>(),
+            LedgerDatabase::class.java,
+        ).build()
+        try {
+            database.transactionDao().upsert(transaction("expense", "2026-09-22", 1_500L))
+            database.recurringRuleDao().upsert(
+                RecurringRuleEntity(
+                    id = "monthly-rent",
+                    type = "expense",
+                    amountMinor = 350_000L,
+                    categoryId = "expense.housing",
+                    note = "房租",
+                    frequency = "monthly",
+                    startDate = "2026-09-01",
+                    nextExecutionDate = "2026-10-01",
+                    isEnabled = true,
+                    createdAtEpochMs = 10L,
+                    updatedAtEpochMs = 10L,
+                ),
+            )
+
+            val result = LedgerBackupStore(database).clearAll()
+
+            assertEquals(1, result.deletedTransactionCount)
+            assertEquals(1, result.deletedRecurringRuleCount)
+            assertEquals(emptyList<TransactionEntity>(), database.transactionDao().getAllSnapshot())
+            assertEquals(emptyList<RecurringRuleEntity>(), database.recurringRuleDao().getAllSnapshot())
         } finally {
             database.close()
         }

@@ -9,7 +9,6 @@ import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import com.example.simpleledger.data.preferences.LedgerPreferences
 import com.example.simpleledger.data.recurring.RecurringTransactionProcessor
-import com.example.simpleledger.domain.model.RecurringProcessResult
 import com.example.simpleledger.domain.model.LedgerMode
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CancellationException
@@ -67,7 +66,4 @@ object RecurringWorkScheduler {
             request,
         )
     }
-
-    suspend fun processNow(context: Context): RecurringProcessResult =
-        RecurringTransactionProcessor.create(context).processDue()
 }

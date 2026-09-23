@@ -12,12 +12,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Backup
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.CloudDone
 import androidx.compose.material.icons.rounded.ErrorOutline
+import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.material.icons.rounded.Restore
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.VisibilityOff
@@ -26,7 +28,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -42,11 +43,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
@@ -59,25 +62,27 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NutstoreBackupScreen(
     manager: NutstoreBackupManager,
     onBack: () -> Unit,
+    onManageBackups: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val settings by manager.settings.collectAsStateWithLifecycle()
     val status by manager.status.collectAsStateWithLifecycle()
-    var username by remember { mutableStateOf(settings.username) }
-    // Keep credentials out of saved instance state so the plaintext password is never placed in a Bundle.
-    var password by remember { mutableStateOf("") }
-    var passwordVisible by remember { mutableStateOf(false) }
+    val savedCredentials = remember(manager) { manager.savedCredentials() }
+    var username by remember { mutableStateOf(savedCredentials?.username ?: settings.username) }
+    // Keep plaintext credentials out of saved instance state, while displaying the saved value as requested.
+    var password by remember { mutableStateOf(savedCredentials?.password.orEmpty()) }
+    var passwordVisible by rememberSaveable { mutableStateOf(true) }
     var showRestoreConfirmation by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     Scaffold(
         modifier = modifier,
         containerColor = Color.Transparent,
+        contentColor = MaterialTheme.colorScheme.onBackground,
         topBar = {
             CompactTopBar(
                 title = "坚果云备份",
@@ -97,6 +102,7 @@ fun NutstoreBackupScreen(
                 Surface(
                     shape = RoundedCornerShape(24.dp),
                     color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.76f),
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                 ) {
                     Row(
                         modifier = Modifier.padding(18.dp),
@@ -129,6 +135,7 @@ fun NutstoreBackupScreen(
                     shape = RoundedCornerShape(24.dp),
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.82f),
+                        contentColor = MaterialTheme.colorScheme.onSurface,
                     ),
                 ) {
                     Column(Modifier.padding(18.dp)) {
@@ -152,6 +159,7 @@ fun NutstoreBackupScreen(
                             label = { Text("第三方应用密码") },
                             singleLine = true,
                             enabled = !status.isRunning,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                             visualTransformation = if (passwordVisible) {
                                 VisualTransformation.None
                             } else {
@@ -160,19 +168,20 @@ fun NutstoreBackupScreen(
                             trailingIcon = {
                                 IconButton(onClick = { passwordVisible = !passwordVisible }) {
                                     Icon(
-                                        if (passwordVisible) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
+                                        imageVector = if (passwordVisible) {
+                                            Icons.Rounded.VisibilityOff
+                                        } else {
+                                            Icons.Rounded.Visibility
+                                        },
                                         contentDescription = if (passwordVisible) "隐藏密码" else "显示密码",
                                     )
                                 }
-                            },
-                            supportingText = {
-                                Text("请使用坚果云“安全选项 → 第三方应用管理”生成的应用密码")
                             },
                         )
                         Button(
                             onClick = {
                                 scope.launch {
-                                    if (manager.connectAndSave(username, password)) password = ""
+                                    manager.connectAndSave(username, password)
                                 }
                             },
                             modifier = Modifier
@@ -192,6 +201,7 @@ fun NutstoreBackupScreen(
                         shape = RoundedCornerShape(24.dp),
                         colors = CardDefaults.cardColors(
                             containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.82f),
+                            contentColor = MaterialTheme.colorScheme.onSurface,
                         ),
                     ) {
                         Column(Modifier.padding(18.dp)) {
@@ -239,6 +249,16 @@ fun NutstoreBackupScreen(
                             ) {
                                 Icon(Icons.Rounded.Restore, contentDescription = null)
                                 Text("恢复最新备份", modifier = Modifier.padding(start = 8.dp))
+                            }
+                            OutlinedButton(
+                                onClick = onManageBackups,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 10.dp),
+                                enabled = !status.isRunning,
+                            ) {
+                                Icon(Icons.Rounded.FolderOpen, contentDescription = null)
+                                Text("管理云端备份", modifier = Modifier.padding(start = 8.dp))
                             }
                             settings.lastBackupAtEpochMs?.let { timestamp ->
                                 Text(
@@ -316,8 +336,6 @@ private val backupTimeFormatter = DateTimeFormatter.ofPattern(
     Locale.SIMPLIFIED_CHINESE,
 )
 
-private fun formatBackupTime(epochMs: Long): String = rememberlessFormat(epochMs)
-
-private fun rememberlessFormat(epochMs: Long): String = Instant.ofEpochMilli(epochMs)
+private fun formatBackupTime(epochMs: Long): String = Instant.ofEpochMilli(epochMs)
     .atZone(ZoneId.systemDefault())
     .format(backupTimeFormatter)

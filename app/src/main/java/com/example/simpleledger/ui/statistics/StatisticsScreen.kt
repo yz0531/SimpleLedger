@@ -2,32 +2,36 @@ package com.example.simpleledger.ui.statistics
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ChevronLeft
+import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
@@ -46,8 +50,11 @@ import com.example.simpleledger.domain.model.MonthlyExpense
 import com.example.simpleledger.domain.model.YearlyExpenseStatistics
 import com.example.simpleledger.domain.repository.LedgerRepository
 import com.example.simpleledger.ui.components.formatMoney
-import com.example.simpleledger.ui.components.CompactTopBar
 import java.time.Year
+import kotlinx.coroutines.launch
+
+private const val YEAR_PAGE_COUNT = 401
+private const val CURRENT_YEAR_PAGE = YEAR_PAGE_COUNT / 2
 
 @Composable
 fun StatisticsScreen(
@@ -55,46 +62,77 @@ fun StatisticsScreen(
     modifier: Modifier = Modifier,
     initialYear: Int = Year.now().value,
 ) {
-    var selectedYear by rememberSaveable { mutableIntStateOf(initialYear) }
-    val statisticsFlow = remember(repository, selectedYear) {
-        repository.observeYearlyExpenseStatistics(selectedYear)
+    val baseYear = remember(initialYear) { initialYear }
+    val pagerState = rememberPagerState(
+        initialPage = CURRENT_YEAR_PAGE,
+        pageCount = { YEAR_PAGE_COUNT },
+    )
+    val scope = rememberCoroutineScope()
+
+    HorizontalPager(
+        state = pagerState,
+        modifier = modifier
+            .fillMaxSize()
+            .statusBarsPadding(),
+        beyondViewportPageCount = 1,
+        key = { page -> baseYear + page - CURRENT_YEAR_PAGE },
+    ) { page ->
+        val year = baseYear + page - CURRENT_YEAR_PAGE
+        YearStatisticsPage(
+            repository = repository,
+            year = year,
+            canGoPrevious = page > 0,
+            canGoNext = page < YEAR_PAGE_COUNT - 1,
+            onPrevious = {
+                scope.launch {
+                    pagerState.animateScrollToPage(page - 1, animationSpec = tween(240))
+                }
+            },
+            onNext = {
+                scope.launch {
+                    pagerState.animateScrollToPage(page + 1, animationSpec = tween(240))
+                }
+            },
+        )
+    }
+}
+
+@Composable
+private fun YearStatisticsPage(
+    repository: LedgerRepository,
+    year: Int,
+    canGoPrevious: Boolean,
+    canGoNext: Boolean,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit,
+) {
+    val statisticsFlow = remember(repository, year) {
+        repository.observeYearlyExpenseStatistics(year)
     }
     val statistics by statisticsFlow.collectAsStateWithLifecycle(
-        initialValue = YearlyExpenseStatistics.from(emptyList(), selectedYear),
+        initialValue = YearlyExpenseStatistics.from(emptyList(), year),
     )
 
-    Scaffold(
-        modifier = modifier,
-        containerColor = Color.Transparent,
-        contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        topBar = {
-            CompactTopBar(
-                title = "年度统计",
-                subtitle = "看清每个月的花销变化",
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 20.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        item {
+            YearPicker(
+                year = year,
+                canGoPrevious = canGoPrevious,
+                canGoNext = canGoNext,
+                onPrevious = onPrevious,
+                onNext = onNext,
             )
-        },
-    ) { innerPadding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
-            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            item {
-                YearPicker(
-                    year = selectedYear,
-                    onPrevious = { selectedYear -= 1 },
-                    onNext = { selectedYear += 1 },
-                )
-            }
+        }
 
-            if (statistics.isEmpty) {
-                item { EmptyStatistics(year = selectedYear) }
-            } else {
-                item { AnnualSummaryCard(statistics = statistics) }
-                item { MonthlyExpenseChart(statistics = statistics) }
-            }
+        if (statistics.isEmpty) {
+            item { EmptyStatistics(year = year) }
+        } else {
+            item { AnnualSummaryCard(statistics = statistics) }
+            item { MonthlyExpenseChart(statistics = statistics) }
         }
     }
 }
@@ -102,6 +140,8 @@ fun StatisticsScreen(
 @Composable
 private fun YearPicker(
     year: Int,
+    canGoPrevious: Boolean,
+    canGoNext: Boolean,
     onPrevious: () -> Unit,
     onNext: () -> Unit,
 ) {
@@ -110,20 +150,17 @@ private fun YearPicker(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        TextButton(onClick = onPrevious) { Text("‹  上一年") }
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                text = "$year 年",
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-            )
-            Text(
-                text = "全年支出概览",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+        IconButton(onClick = onPrevious, enabled = canGoPrevious) {
+            Icon(Icons.Rounded.ChevronLeft, contentDescription = "切换到上一年")
         }
-        TextButton(onClick = onNext) { Text("下一年  ›") }
+        Text(
+            text = "$year 年",
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold,
+        )
+        IconButton(onClick = onNext, enabled = canGoNext) {
+            Icon(Icons.Rounded.ChevronRight, contentDescription = "切换到下一年")
+        }
     }
 }
 
@@ -135,7 +172,10 @@ private fun AnnualSummaryCard(statistics: YearlyExpenseStatistics) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(28.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        colors = CardDefaults.cardColors(
+            containerColor = Color.Transparent,
+            contentColor = colors.onSurface,
+        ),
     ) {
         Column(
             modifier = Modifier
@@ -225,15 +265,7 @@ private fun MonthlyExpenseChart(statistics: YearlyExpenseStatistics) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.Bottom,
             ) {
-                Column {
-                    Text("月度趋势", style = MaterialTheme.typography.titleLarge)
-                    Text(
-                        text = "柱高按最高月份等比显示",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = colors.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 2.dp),
-                    )
-                }
+                Text("月度趋势", style = MaterialTheme.typography.titleLarge)
                 Text(
                     text = "峰值 ${highestMonth.month}月",
                     style = MaterialTheme.typography.labelLarge,

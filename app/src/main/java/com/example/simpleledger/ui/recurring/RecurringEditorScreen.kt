@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -23,9 +24,6 @@ import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDialog
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -38,7 +36,6 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -56,27 +53,24 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.simpleledger.domain.model.Categories
 import com.example.simpleledger.domain.model.LedgerMode
+import com.example.simpleledger.domain.model.MAX_LEDGER_NOTE_LENGTH
 import com.example.simpleledger.domain.model.RecurringFrequency
 import com.example.simpleledger.domain.model.RecurringRule
 import com.example.simpleledger.domain.model.TransactionType
 import com.example.simpleledger.domain.recurring.RecurringPostingPlanner
 import com.example.simpleledger.domain.repository.RecurringRuleRepository
+import com.example.simpleledger.ui.components.AutoConfirmDatePickerDialog
 import com.example.simpleledger.ui.components.CategoryPicker
 import com.example.simpleledger.ui.components.CompactTopBar
 import com.example.simpleledger.ui.components.amountInput
 import com.example.simpleledger.ui.components.formatEditorDay
 import com.example.simpleledger.ui.components.parseAmountMinor
-import java.time.Instant
 import java.time.LocalDate
-import java.time.ZoneOffset
 import java.time.format.TextStyle
 import java.util.Locale
 import java.util.UUID
 import kotlinx.coroutines.launch
 
-private const val MAX_RECURRING_NOTE_LENGTH = 500
-
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RecurringEditorScreen(
     repository: RecurringRuleRepository,
@@ -139,28 +133,15 @@ fun RecurringEditorScreen(
     }
 
     if (showDatePicker) {
-        val initialMillis = runCatching {
-            LocalDate.parse(startDate).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
-        }.getOrNull()
-        val datePickerState = rememberDatePickerState(
-            initialSelectedDateMillis = null,
-            initialDisplayedMonthMillis = initialMillis,
-        )
-        LaunchedEffect(datePickerState.selectedDateMillis) {
-            datePickerState.selectedDateMillis?.let { millis ->
-                startDate = Instant.ofEpochMilli(millis)
-                    .atZone(ZoneOffset.UTC)
-                    .toLocalDate()
-                    .toString()
+        AutoConfirmDatePickerDialog(
+            initialDate = startDate,
+            onDateSelected = { selectedDate ->
+                startDate = selectedDate
                 dateError = null
                 showDatePicker = false
-            }
-        }
-        DatePickerDialog(
-            onDismissRequest = { showDatePicker = false },
-            confirmButton = {},
-            dismissButton = { TextButton(onClick = { showDatePicker = false }) { Text("取消") } },
-        ) { DatePicker(state = datePickerState) }
+            },
+            onDismiss = { showDatePicker = false },
+        )
     }
 
     if (showDeleteDialog) {
@@ -187,9 +168,64 @@ fun RecurringEditorScreen(
         )
     }
 
+    val saveRule: () -> Unit = saveRule@{
+        if (isSaving) return@saveRule
+        val amountMinor = parseAmountMinor(amount)
+        if (amountMinor == null) {
+            amountError = "请输入大于 0、最多两位小数的金额"
+            return@saveRule
+        }
+        val start = LocalDate.parse(startDate)
+        val original = loadedRule
+        if ((original == null || startDate != original.startDate) && start.isBefore(LocalDate.now())) {
+            dateError = "首次执行日期请选择今天或未来"
+            return@saveRule
+        }
+        scope.launch {
+            isSaving = true
+            val now = System.currentTimeMillis().coerceAtLeast(original?.createdAtEpochMs ?: 0L)
+            val scheduleChanged = original == null ||
+                original.startDate != startDate ||
+                original.frequency != frequency
+            val nextDate = if (scheduleChanged) {
+                RecurringPostingPlanner.firstOccurrenceAfter(
+                    currentNextExecutionDate = start,
+                    afterDate = LocalDate.now().minusDays(1),
+                    frequency = frequency,
+                    anchorStartDate = start,
+                ).toString()
+            } else {
+                original.nextExecutionDate
+            }
+            val rule = RecurringRule(
+                id = original?.id ?: UUID.randomUUID().toString(),
+                type = if (expenseOnly) TransactionType.EXPENSE else type,
+                amountMinor = amountMinor,
+                categoryId = categoryId,
+                note = note.trim(),
+                frequency = frequency,
+                startDate = startDate,
+                nextExecutionDate = nextDate,
+                isEnabled = original?.isEnabled ?: true,
+                createdAtEpochMs = original?.createdAtEpochMs ?: now,
+                updatedAtEpochMs = now,
+            )
+            runCatching {
+                repository.upsert(rule)
+                processDue()
+            }.onSuccess {
+                onSaved()
+            }.onFailure {
+                snackbarHostState.showSnackbar(it.message ?: "保存周期规则失败")
+            }
+            isSaving = false
+        }
+    }
+
     Scaffold(
         modifier = modifier,
         containerColor = Color.Transparent,
+        contentColor = MaterialTheme.colorScheme.onBackground,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             CompactTopBar(
@@ -260,6 +296,7 @@ fun RecurringEditorScreen(
                 Surface(
                     shape = RoundedCornerShape(24.dp),
                     color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+                    contentColor = MaterialTheme.colorScheme.onSurface,
                 ) {
                     Column(Modifier.padding(18.dp)) {
                         Text("固定金额", style = MaterialTheme.typography.labelLarge)
@@ -281,8 +318,9 @@ fun RecurringEditorScreen(
                             supportingText = amountError?.let { { Text(it) } },
                             keyboardOptions = KeyboardOptions(
                                 keyboardType = KeyboardType.Decimal,
-                                imeAction = ImeAction.Next,
+                                imeAction = ImeAction.Done,
                             ),
+                            keyboardActions = KeyboardActions(onDone = { saveRule() }),
                             textStyle = MaterialTheme.typography.headlineSmall,
                         )
                     }
@@ -355,11 +393,11 @@ fun RecurringEditorScreen(
                 Spacer(Modifier.height(18.dp))
                 OutlinedTextField(
                     value = note,
-                    onValueChange = { if (it.length <= MAX_RECURRING_NOTE_LENGTH) note = it },
+                    onValueChange = { if (it.length <= MAX_LEDGER_NOTE_LENGTH) note = it },
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text("名称或备注（可选）") },
                     placeholder = { Text("例如：房租、视频会员") },
-                    supportingText = { Text("${note.length}/$MAX_RECURRING_NOTE_LENGTH") },
+                    supportingText = { Text("${note.length}/$MAX_LEDGER_NOTE_LENGTH") },
                     minLines = 2,
                     maxLines = 4,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
@@ -371,58 +409,7 @@ fun RecurringEditorScreen(
                         .fillMaxWidth()
                         .height(54.dp),
                     enabled = !isSaving,
-                    onClick = {
-                        val amountMinor = parseAmountMinor(amount)
-                        if (amountMinor == null) {
-                            amountError = "请输入大于 0、最多两位小数的金额"
-                            return@Button
-                        }
-                        val start = LocalDate.parse(startDate)
-                        val original = loadedRule
-                        if ((original == null || startDate != original.startDate) && start.isBefore(LocalDate.now())) {
-                            dateError = "首次执行日期请选择今天或未来"
-                            return@Button
-                        }
-                        scope.launch {
-                            isSaving = true
-                            val now = System.currentTimeMillis().coerceAtLeast(original?.createdAtEpochMs ?: 0L)
-                            val scheduleChanged = original == null ||
-                                original.startDate != startDate ||
-                                original.frequency != frequency
-                            val nextDate = if (scheduleChanged) {
-                                RecurringPostingPlanner.firstOccurrenceAfter(
-                                    currentNextExecutionDate = start,
-                                    afterDate = LocalDate.now().minusDays(1),
-                                    frequency = frequency,
-                                    anchorStartDate = start,
-                                ).toString()
-                            } else {
-                                original.nextExecutionDate
-                            }
-                            val rule = RecurringRule(
-                                id = original?.id ?: UUID.randomUUID().toString(),
-                                type = if (expenseOnly) TransactionType.EXPENSE else type,
-                                amountMinor = amountMinor,
-                                categoryId = categoryId,
-                                note = note.trim(),
-                                frequency = frequency,
-                                startDate = startDate,
-                                nextExecutionDate = nextDate,
-                                isEnabled = original?.isEnabled ?: true,
-                                createdAtEpochMs = original?.createdAtEpochMs ?: now,
-                                updatedAtEpochMs = now,
-                            )
-                            runCatching {
-                                repository.upsert(rule)
-                                processDue()
-                            }.onSuccess {
-                                onSaved()
-                            }.onFailure {
-                                snackbarHostState.showSnackbar(it.message ?: "保存周期规则失败")
-                            }
-                            isSaving = false
-                        }
-                    },
+                    onClick = saveRule,
                 ) {
                     if (isSaving) {
                         CircularProgressIndicator(

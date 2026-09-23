@@ -14,6 +14,9 @@ enum class LedgerColor(
     AMBER("琥珀", 0xFF98500F, 0xFFFFF0DC, 0xFF1B140D),
     ALPINE("雪青", 0xFF25667A, 0xFFE7F3F5, 0xFF101719),
     GRAPHITE("石墨", 0xFF4F626B, 0xFFEDF1F2, 0xFF111416),
+    FOREST("松绿", 0xFF376149, 0xFFE7F1E9, 0xFF0E1711),
+    NIGHT("夜蓝", 0xFF48598C, 0xFFEDF0FA, 0xFF0D111C),
+    AURORA("极光", 0xFF356A70, 0xFFE5F3F2, 0xFF0B1718),
 }
 
 enum class LedgerSkin(
@@ -21,18 +24,67 @@ enum class LedgerSkin(
     val description: String,
     val defaultColor: LedgerColor,
     val hasImage: Boolean = true,
+    val prefersDarkUi: Boolean = false,
+    val foregroundArgb: Long = 0xFF171A18,
+    val mutedForegroundArgb: Long = 0xFF47504B,
 ) {
     BASIC("基础", "简洁纯色", LedgerColor.JADE, hasImage = false),
-    JADE("青玉", "雨林蕨叶", LedgerColor.JADE),
-    SUNSET("暖阳", "赤岩公路", LedgerColor.SUNSET),
-    OCEAN("海风", "晨光海岸", LedgerColor.OCEAN),
-    LAVENDER("丁香", "薰衣草原", LedgerColor.LAVENDER),
-    FOREST("森屿", "深绿蕨林", LedgerColor.JADE),
-    AMBER("琥珀", "暖调峡谷", LedgerColor.AMBER),
-    ALPINE("雪岚", "清冷海湾", LedgerColor.ALPINE),
-    ROSE("绯霞", "玫瑰花田", LedgerColor.ROSE),
-    NIGHT("夜潮", "暮色海岸", LedgerColor.GRAPHITE),
-    AURORA("极光", "幻彩花原", LedgerColor.LAVENDER),
+    JADE(
+        "青玉", "雨林蕨叶", LedgerColor.JADE,
+        prefersDarkUi = true,
+        foregroundArgb = 0xFFF4FFF7,
+        mutedForegroundArgb = 0xFFE4F6E8,
+    ),
+    SUNSET(
+        "暖阳", "赤岩公路", LedgerColor.SUNSET,
+        prefersDarkUi = true,
+        foregroundArgb = 0xFFFFF7F1,
+        mutedForegroundArgb = 0xFFFAEAE2,
+    ),
+    OCEAN(
+        "海风", "晨光海岸", LedgerColor.OCEAN,
+        foregroundArgb = 0xFF092A3A,
+        mutedForegroundArgb = 0xFF24404D,
+    ),
+    LAVENDER(
+        "丁香", "薰衣草原", LedgerColor.LAVENDER,
+        prefersDarkUi = true,
+        foregroundArgb = 0xFFFFF8FF,
+        mutedForegroundArgb = 0xFFF3E9FA,
+    ),
+    FOREST(
+        "森屿", "雾光松林", LedgerColor.FOREST,
+        prefersDarkUi = true,
+        foregroundArgb = 0xFFF2FFF5,
+        mutedForegroundArgb = 0xFFE0F4E4,
+    ),
+    AMBER(
+        "琥珀", "金色沙丘", LedgerColor.AMBER,
+        foregroundArgb = 0xFF2F1C0B,
+        mutedForegroundArgb = 0xFF50331E,
+    ),
+    ALPINE(
+        "雪岚", "雪峰云海", LedgerColor.ALPINE,
+        foregroundArgb = 0xFF102B3A,
+        mutedForegroundArgb = 0xFF304A55,
+    ),
+    ROSE(
+        "绯霞", "春日樱花", LedgerColor.ROSE,
+        foregroundArgb = 0xFF401625,
+        mutedForegroundArgb = 0xFF5C2D3C,
+    ),
+    NIGHT(
+        "夜潮", "银河雪峰", LedgerColor.NIGHT,
+        prefersDarkUi = true,
+        foregroundArgb = 0xFFF7F8FF,
+        mutedForegroundArgb = 0xFFE7EBFA,
+    ),
+    AURORA(
+        "极光", "北境极光", LedgerColor.AURORA,
+        prefersDarkUi = true,
+        foregroundArgb = 0xFFF0FFFC,
+        mutedForegroundArgb = 0xFFDFF5F0,
+    ),
 }
 
 data class LedgerAppearance(

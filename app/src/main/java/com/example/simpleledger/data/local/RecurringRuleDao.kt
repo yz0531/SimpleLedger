@@ -46,7 +46,10 @@ interface RecurringRuleDao {
     suspend fun getAllIds(): List<String>
 
     @Query("DELETE FROM recurring_rules WHERE id = :id")
-    suspend fun deleteById(id: String): Int
+    suspend fun deleteById(id: String)
+
+    @Query("DELETE FROM recurring_rules")
+    suspend fun deleteAll(): Int
 
     @Query(
         """
@@ -59,7 +62,7 @@ interface RecurringRuleDao {
         WHERE type = 'income' AND isEnabled = 1
         """,
     )
-    suspend fun disableIncomeRules(updatedAtEpochMs: Long): Int
+    suspend fun disableIncomeRules(updatedAtEpochMs: Long)
 
     @Query(
         """
@@ -75,7 +78,7 @@ interface RecurringRuleDao {
         isEnabled: Boolean,
         nextExecutionDate: String,
         updatedAtEpochMs: Long,
-    ): Int
+    )
 
     @Query(
         """

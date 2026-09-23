@@ -18,7 +18,7 @@ class MainActivity : ComponentActivity() {
         val container = (application as LedgerApplication).container
         setContent {
             val appearance by container.preferences.appearance.collectAsStateWithLifecycle()
-            SimpleLedgerTheme(colorStyle = appearance.color) {
+            SimpleLedgerTheme(appearance = appearance) {
                 LedgerApp(
                     container = container,
                     appearance = appearance,

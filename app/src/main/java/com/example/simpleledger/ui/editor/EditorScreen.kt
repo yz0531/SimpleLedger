@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -23,9 +24,6 @@ import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDialog
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -38,7 +36,6 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -57,22 +54,19 @@ import androidx.compose.ui.unit.dp
 import com.example.simpleledger.domain.model.Categories
 import com.example.simpleledger.domain.model.LedgerMode
 import com.example.simpleledger.domain.model.LedgerTransaction
+import com.example.simpleledger.domain.model.MAX_LEDGER_NOTE_LENGTH
 import com.example.simpleledger.domain.model.TransactionType
 import com.example.simpleledger.domain.repository.LedgerRepository
-import com.example.simpleledger.ui.components.amountInput
+import com.example.simpleledger.ui.components.AutoConfirmDatePickerDialog
 import com.example.simpleledger.ui.components.CategoryPicker
 import com.example.simpleledger.ui.components.CompactTopBar
+import com.example.simpleledger.ui.components.amountInput
 import com.example.simpleledger.ui.components.formatEditorDay
 import com.example.simpleledger.ui.components.parseAmountMinor
-import java.time.Instant
 import java.time.LocalDate
-import java.time.ZoneOffset
 import java.util.UUID
 import kotlinx.coroutines.launch
 
-private const val MAX_NOTE_LENGTH = 500
-
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EditorScreen(
     repository: LedgerRepository,
@@ -102,6 +96,40 @@ fun EditorScreen(
     val type = TransactionType.valueOf(typeName)
     val expenseOnly = mode == LedgerMode.EXPENSE_ONLY
 
+    fun saveTransaction() {
+        if (isSaving) return
+        val amountMinor = parseAmountMinor(amount)
+        if (amountMinor == null) {
+            amountError = "请输入大于 0、最多两位小数的金额"
+            return
+        }
+        if (categoryId.isBlank()) {
+            scope.launch { snackbarHostState.showSnackbar("请选择分类") }
+            return
+        }
+
+        isSaving = true
+        scope.launch {
+            val original = loadedTransaction
+            val now = System.currentTimeMillis()
+                .coerceAtLeast(original?.createdAtEpochMs ?: 0L)
+            val transaction = LedgerTransaction(
+                id = original?.id ?: UUID.randomUUID().toString(),
+                type = type,
+                amountMinor = amountMinor,
+                categoryId = categoryId,
+                occurredOn = occurredOn,
+                note = note.trim(),
+                createdAtEpochMs = original?.createdAtEpochMs ?: now,
+                updatedAtEpochMs = now,
+            )
+            runCatching { repository.upsert(transaction) }
+                .onSuccess { onSaved() }
+                .onFailure { snackbarHostState.showSnackbar(it.message ?: "保存失败") }
+            isSaving = false
+        }
+    }
+
     LaunchedEffect(transactionId) {
         if (transactionId == null) return@LaunchedEffect
         isLoading = true
@@ -130,31 +158,14 @@ fun EditorScreen(
     }
 
     if (showDatePicker) {
-        val initialMillis = runCatching {
-            LocalDate.parse(occurredOn).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
-        }.getOrNull()
-        val datePickerState = rememberDatePickerState(
-            initialSelectedDateMillis = null,
-            initialDisplayedMonthMillis = initialMillis,
-        )
-        LaunchedEffect(datePickerState.selectedDateMillis) {
-            datePickerState.selectedDateMillis?.let { millis ->
-                occurredOn = Instant.ofEpochMilli(millis)
-                    .atZone(ZoneOffset.UTC)
-                    .toLocalDate()
-                    .toString()
+        AutoConfirmDatePickerDialog(
+            initialDate = occurredOn,
+            onDateSelected = { selectedDate ->
+                occurredOn = selectedDate
                 showDatePicker = false
-            }
-        }
-        DatePickerDialog(
-            onDismissRequest = { showDatePicker = false },
-            confirmButton = {},
-            dismissButton = {
-                TextButton(onClick = { showDatePicker = false }) { Text("取消") }
             },
-        ) {
-            DatePicker(state = datePickerState)
-        }
+            onDismiss = { showDatePicker = false },
+        )
     }
 
     if (showDeleteDialog) {
@@ -186,6 +197,7 @@ fun EditorScreen(
     Scaffold(
         modifier = modifier,
         containerColor = Color.Transparent,
+        contentColor = MaterialTheme.colorScheme.onBackground,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             CompactTopBar(
@@ -261,6 +273,7 @@ fun EditorScreen(
                 Surface(
                     shape = RoundedCornerShape(24.dp),
                     color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+                    contentColor = MaterialTheme.colorScheme.onSurface,
                 ) {
                     Column(Modifier.padding(18.dp)) {
                         Text(
@@ -286,8 +299,9 @@ fun EditorScreen(
                             supportingText = amountError?.let { { Text(it) } },
                             keyboardOptions = KeyboardOptions(
                                 keyboardType = KeyboardType.Decimal,
-                                imeAction = ImeAction.Next,
+                                imeAction = ImeAction.Done,
                             ),
+                            keyboardActions = KeyboardActions(onDone = { saveTransaction() }),
                             textStyle = MaterialTheme.typography.headlineSmall,
                         )
                     }
@@ -320,11 +334,11 @@ fun EditorScreen(
                 Spacer(Modifier.height(18.dp))
                 OutlinedTextField(
                     value = note,
-                    onValueChange = { if (it.length <= MAX_NOTE_LENGTH) note = it },
+                    onValueChange = { if (it.length <= MAX_LEDGER_NOTE_LENGTH) note = it },
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text("备注（可选）") },
                     placeholder = { Text("写点什么…") },
-                    supportingText = { Text("${note.length}/$MAX_NOTE_LENGTH") },
+                    supportingText = { Text("${note.length}/$MAX_LEDGER_NOTE_LENGTH") },
                     minLines = 2,
                     maxLines = 4,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
@@ -336,37 +350,7 @@ fun EditorScreen(
                         .fillMaxWidth()
                     .height(54.dp),
                     enabled = !isSaving,
-                    onClick = {
-                        val amountMinor = parseAmountMinor(amount)
-                        if (amountMinor == null) {
-                            amountError = "请输入大于 0、最多两位小数的金额"
-                            return@Button
-                        }
-                        if (categoryId.isBlank()) {
-                            scope.launch { snackbarHostState.showSnackbar("请选择分类") }
-                            return@Button
-                        }
-                        scope.launch {
-                            isSaving = true
-                            val original = loadedTransaction
-                            val now = System.currentTimeMillis()
-                                .coerceAtLeast(original?.createdAtEpochMs ?: 0L)
-                            val transaction = LedgerTransaction(
-                                id = original?.id ?: UUID.randomUUID().toString(),
-                                type = type,
-                                amountMinor = amountMinor,
-                                categoryId = categoryId,
-                                occurredOn = occurredOn,
-                                note = note.trim(),
-                                createdAtEpochMs = original?.createdAtEpochMs ?: now,
-                                updatedAtEpochMs = now,
-                            )
-                            runCatching { repository.upsert(transaction) }
-                                .onSuccess { onSaved() }
-                                .onFailure { snackbarHostState.showSnackbar(it.message ?: "保存失败") }
-                            isSaving = false
-                        }
-                    },
+                    onClick = ::saveTransaction,
                 ) {
                     if (isSaving) {
                         CircularProgressIndicator(

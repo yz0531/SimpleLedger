@@ -13,6 +13,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
+import com.example.simpleledger.domain.model.LedgerAppearance
 import com.example.simpleledger.domain.model.LedgerColor
 
 private val JadeLight = lightColorScheme(
@@ -150,16 +151,59 @@ private fun LedgerColor.lightScheme(): ColorScheme = when (this) {
         secondary = Color(0xFF596268),
         tertiary = Color(0xFF5F5E70),
     )
+    LedgerColor.FOREST -> JadeLight.copy(
+        primary = Color(0xFF376149),
+        primaryContainer = Color(0xFFC9ECCE),
+        onPrimaryContainer = Color(0xFF153B22),
+        secondary = Color(0xFF536B57),
+        tertiary = Color(0xFF526B63),
+    )
+    LedgerColor.NIGHT -> OceanLight.copy(
+        primary = Color(0xFF48598C),
+        primaryContainer = Color(0xFFDCE2FF),
+        onPrimaryContainer = Color(0xFF162452),
+        secondary = Color(0xFF5B607A),
+        tertiary = Color(0xFF765984),
+    )
+    LedgerColor.AURORA -> OceanLight.copy(
+        primary = Color(0xFF356A70),
+        primaryContainer = Color(0xFFBDECEF),
+        onPrimaryContainer = Color(0xFF063A3E),
+        secondary = Color(0xFF66578A),
+        secondaryContainer = Color(0xFFE9DDFF),
+        onSecondaryContainer = Color(0xFF32265A),
+        tertiary = Color(0xFF6B4E72),
+        tertiaryContainer = Color(0xFFF4D8F5),
+        onTertiaryContainer = Color(0xFF3D2442),
+    )
+}
+
+private fun ColorScheme.withSkinForeground(appearance: LedgerAppearance): ColorScheme {
+    if (!appearance.skin.hasImage) return this
+    val foreground = Color(appearance.skin.foregroundArgb)
+    val mutedForeground = Color(appearance.skin.mutedForegroundArgb)
+    return copy(
+        onBackground = foreground,
+        onSurface = foreground,
+        onSurfaceVariant = mutedForeground,
+        outline = mutedForeground.copy(alpha = 0.78f),
+        outlineVariant = mutedForeground.copy(alpha = 0.45f),
+    )
 }
 
 @Composable
 fun SimpleLedgerTheme(
-    colorStyle: LedgerColor = LedgerColor.JADE,
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    appearance: LedgerAppearance,
     content: @Composable () -> Unit,
 ) {
-    val lightScheme = colorStyle.lightScheme()
-    val colorScheme = if (darkTheme) darkScheme(lightScheme) else lightScheme
+    val darkTheme = if (appearance.skin.hasImage) {
+        appearance.skin.prefersDarkUi
+    } else {
+        isSystemInDarkTheme()
+    }
+    val lightScheme = appearance.color.lightScheme()
+    val baseColorScheme = if (darkTheme) darkScheme(lightScheme) else lightScheme
+    val colorScheme = baseColorScheme.withSkinForeground(appearance)
     val context = LocalContext.current
     val view = LocalView.current
 

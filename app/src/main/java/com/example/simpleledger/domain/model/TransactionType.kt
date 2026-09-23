@@ -6,6 +6,6 @@ enum class TransactionType(val wireValue: String) {
 
     companion object {
         fun fromWireValue(value: String): TransactionType? =
-            values().firstOrNull { it.wireValue == value }
+            entries.firstOrNull { it.wireValue == value }
     }
 }

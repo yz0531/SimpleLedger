@@ -42,6 +42,7 @@ class LedgerPreferences(context: Context) {
     }
 
     fun setColor(color: LedgerColor) {
+        if (mutableAppearance.value.skin.hasImage) return
         preferences.edit().putString(KEY_LEDGER_COLOR, color.name).apply()
         mutableAppearance.value = mutableAppearance.value.copy(color = color)
     }
@@ -60,9 +61,9 @@ class LedgerPreferences(context: Context) {
         val skin = preferences.getString(KEY_LEDGER_SKIN, null)
             ?.let { stored -> runCatching { LedgerSkin.valueOf(stored) }.getOrNull() }
             ?: LedgerSkin.JADE
-        val color = preferences.getString(KEY_LEDGER_COLOR, null)
+        val storedColor = preferences.getString(KEY_LEDGER_COLOR, null)
             ?.let { stored -> runCatching { LedgerColor.valueOf(stored) }.getOrNull() }
-            ?: skin.defaultColor
+        val color = if (skin.hasImage) skin.defaultColor else storedColor ?: skin.defaultColor
         val opacity = preferences.getFloat(
             KEY_IMAGE_OPACITY,
             LedgerAppearance.DEFAULT_IMAGE_OPACITY,

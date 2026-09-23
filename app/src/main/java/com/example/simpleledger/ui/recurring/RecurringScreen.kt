@@ -1,5 +1,6 @@
 package com.example.simpleledger.ui.recurring
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -17,7 +19,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.EventRepeat
-import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExtendedFloatingActionButton
@@ -47,7 +48,6 @@ import com.example.simpleledger.domain.model.RecurringRule
 import com.example.simpleledger.domain.model.TransactionType
 import com.example.simpleledger.domain.repository.RecurringRuleRepository
 import com.example.simpleledger.ui.components.categoryIcon
-import com.example.simpleledger.ui.components.CompactTopBar
 import com.example.simpleledger.ui.components.formatMoney
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -75,14 +75,9 @@ fun RecurringScreen(
     Scaffold(
         modifier = modifier,
         containerColor = Color.Transparent,
+        contentColor = MaterialTheme.colorScheme.onBackground,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         snackbarHost = { SnackbarHost(snackbarHostState) },
-        topBar = {
-            CompactTopBar(
-                title = "周期记账",
-                subtitle = "固定开销，按时自动记录",
-            )
-        },
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = onAdd,
@@ -95,35 +90,11 @@ fun RecurringScreen(
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding),
+                .padding(innerPadding)
+                .statusBarsPadding(),
             contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 88.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            item {
-                Surface(
-                    shape = RoundedCornerShape(22.dp),
-                    color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.65f),
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Icon(
-                            Icons.Rounded.Schedule,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                        )
-                        Text(
-                            text = "到期后会在后台记账；若系统延迟任务，下次打开应用会自动补齐。",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer,
-                            modifier = Modifier.padding(start = 12.dp),
-                        )
-                    }
-                }
-            }
             if (rules.isEmpty()) {
                 item { EmptyRecurringRules() }
             } else {
@@ -168,13 +139,21 @@ private fun RecurringRuleCard(
     onEnabledChange: (Boolean) -> Unit,
 ) {
     val category = Categories.find(rule.categoryId)
+    val colors = MaterialTheme.colorScheme
+    val typeContainer = if (rule.type == TransactionType.EXPENSE) {
+        colors.errorContainer
+    } else {
+        colors.primaryContainer
+    }
     Card(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+            containerColor = typeContainer.copy(alpha = 0.58f),
+            contentColor = colors.onSurface,
         ),
+        border = BorderStroke(1.dp, typeContainer.copy(alpha = 0.78f)),
     ) {
         Row(
             modifier = Modifier.padding(16.dp),
@@ -184,9 +163,9 @@ private fun RecurringRuleCard(
                 modifier = Modifier.size(48.dp),
                 shape = RoundedCornerShape(16.dp),
                 color = if (rule.type == TransactionType.EXPENSE) {
-                    MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.72f)
+                    colors.errorContainer.copy(alpha = 0.86f)
                 } else {
-                    MaterialTheme.colorScheme.primaryContainer
+                    colors.primaryContainer
                 },
             ) {
                 Box(contentAlignment = Alignment.Center) {
@@ -194,9 +173,9 @@ private fun RecurringRuleCard(
                         categoryIcon(rule.categoryId),
                         contentDescription = category?.label,
                         tint = if (rule.type == TransactionType.EXPENSE) {
-                            MaterialTheme.colorScheme.onErrorContainer
+                            colors.onErrorContainer
                         } else {
-                            MaterialTheme.colorScheme.onPrimaryContainer
+                            colors.onPrimaryContainer
                         },
                     )
                 }
@@ -223,9 +202,9 @@ private fun RecurringRuleCard(
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = if (rule.type == TransactionType.EXPENSE) {
-                        MaterialTheme.colorScheme.error
+                        colors.error
                     } else {
-                        MaterialTheme.colorScheme.primary
+                        colors.primary
                     },
                     modifier = Modifier.padding(top = 6.dp),
                 )

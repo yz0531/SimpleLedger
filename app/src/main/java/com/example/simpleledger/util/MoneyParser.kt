@@ -29,7 +29,4 @@ object MoneyParser {
             null
         }
     }
-
-    fun parseOrThrow(input: String): Long = parse(input)
-        ?: throw IllegalArgumentException("金额格式无效，金额必须大于 0 且最多保留两位小数")
 }

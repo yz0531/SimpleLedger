@@ -15,7 +15,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -27,7 +26,6 @@ fun CompactTopBar(
     modifier: Modifier = Modifier,
     subtitle: String? = null,
     navigationIcon: ImageVector? = null,
-    navigationDescription: String = "返回",
     onNavigationClick: (() -> Unit)? = null,
     actions: @Composable RowScope.() -> Unit = {},
 ) {
@@ -46,7 +44,7 @@ fun CompactTopBar(
             ) {
                 if (navigationIcon != null && onNavigationClick != null) {
                     IconButton(onClick = onNavigationClick) {
-                        Icon(navigationIcon, contentDescription = navigationDescription)
+                        Icon(navigationIcon, contentDescription = "返回")
                     }
                 }
                 Column(

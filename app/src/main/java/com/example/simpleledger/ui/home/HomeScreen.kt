@@ -1,6 +1,5 @@
 package com.example.simpleledger.ui.home
 
-import androidx.compose.foundation.clickable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -51,7 +50,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.simpleledger.domain.model.LedgerMode
-import com.example.simpleledger.domain.model.LedgerTransaction
 import com.example.simpleledger.domain.model.TransactionType
 import com.example.simpleledger.domain.repository.LedgerRepository
 import com.example.simpleledger.ui.components.MonthSummaryCard
@@ -97,6 +95,7 @@ fun HomeScreen(
     Scaffold(
         modifier = modifier,
         containerColor = Color.Transparent,
+        contentColor = MaterialTheme.colorScheme.onBackground,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         floatingActionButton = {
             ExtendedFloatingActionButton(
@@ -386,6 +385,7 @@ private fun EmptyLedger(
                 modifier = Modifier.size(76.dp),
                 shape = CircleShape,
                 color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.82f),
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(

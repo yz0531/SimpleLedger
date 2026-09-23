@@ -44,6 +44,12 @@ class NutstoreBackupPolicyTest {
     }
 
     @Test
+    fun emptyLedgerDoesNotHaveAutomaticBackupContent() {
+        assertFalse(LedgerBackup(emptyList(), emptyList()).hasBackupContent)
+        assertTrue(LedgerBackup(listOf(lunch), emptyList()).hasBackupContent)
+    }
+
+    @Test
     fun automaticRetentionKeepsOnlyThreeNewestFiles() {
         val files = listOf(
             "auto_2026-09-18_08-00-00-000.json",
@@ -136,6 +142,35 @@ class NutstoreBackupPolicyTest {
         assertEquals(
             listOf("auto_2026-09-21_01-02-03-000.json"),
             WebDavListingParser.fileNames(xml),
+        )
+    }
+
+    @Test
+    fun managedBackupListOnlyContainsFilesCreatedByThisApp() {
+        val files = NutstoreBackupFiles.managedFiles(
+            listOf(
+                "auto_2026-09-21_01-02-03-000_e1789952523000.json",
+                "manual_2026-09-20_01-02-03-000_e1789866123000.json",
+                "unrelated.json",
+                "auto_custom.json",
+                "manual_2026-09-20_01-02-03-000_e1789866123000.json.bak",
+            ),
+        )
+
+        assertEquals(2, files.size)
+        assertEquals(NutstoreBackupKind.AUTOMATIC, files[0].kind)
+        assertEquals(NutstoreBackupKind.MANUAL, files[1].kind)
+        assertTrue(files.none { it.fileName == "unrelated.json" })
+    }
+
+    @Test
+    fun managedBackupListIsNewestFirstAndRemovesDuplicateNames() {
+        val newer = "manual_2026-09-22_01-02-03-000_e1790038923000.json"
+        val older = "auto_2026-09-21_01-02-03-000_e1789952523000.json"
+
+        assertEquals(
+            listOf(newer, older),
+            NutstoreBackupFiles.managedFiles(listOf(older, newer, older)).map { it.fileName },
         )
     }
 }

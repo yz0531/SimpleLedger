@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items as lazyRowItems
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -58,6 +60,7 @@ fun SkinPickerScreen(
     Scaffold(
         modifier = modifier,
         containerColor = Color.Transparent,
+        contentColor = MaterialTheme.colorScheme.onBackground,
         topBar = {
             CompactTopBar(
                 title = "外观皮肤",
@@ -105,55 +108,80 @@ private fun AppearanceControls(
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.92f),
+            contentColor = MaterialTheme.colorScheme.onSurface,
         ),
     ) {
         Column(Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
-            Text("主题颜色", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            Text(
-                "纯色背景与按钮、卡片会使用这组颜色",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 2.dp),
-            )
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                LedgerColor.entries.forEach { color ->
-                    ColorSwatch(
-                        color = color,
-                        selected = color == appearance.color,
-                        onClick = { onColorSelected(color) },
+            if (!appearance.skin.hasImage) {
+                Text("基础颜色", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text(
+                    "基础纯色可以自由选择颜色",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+                LazyRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    contentPadding = PaddingValues(horizontal = 2.dp),
+                ) {
+                    lazyRowItems(LedgerColor.entries, key = LedgerColor::name) { color ->
+                        ColorSwatch(
+                            color = color,
+                            selected = color == appearance.color,
+                            onClick = { onColorSelected(color) },
+                        )
+                    }
+                }
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(34.dp)
+                            .clip(RoundedCornerShape(50))
+                            .background(Color(appearance.skin.defaultColor.swatchArgb)),
                     )
+                    Column(Modifier.padding(start = 12.dp)) {
+                        Text("专属配色", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Text(
+                            "${appearance.skin.displayName} · ${appearance.skin.defaultColor.displayName}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column {
-                    Text("图片透明度", style = MaterialTheme.typography.titleMedium)
-                    Text(
-                        if (appearance.skin.hasImage) "${(appearance.imageOpacity * 100).roundToInt()}%" else "基础纯色不使用图片",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+            if (appearance.skin.hasImage) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column {
+                        Text("图片透明度", style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            "${(appearance.imageOpacity * 100).roundToInt()}%",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
+                Slider(
+                    value = appearance.imageOpacity,
+                    onValueChange = onOpacityChanged,
+                    valueRange = 0.25f..1f,
+                    steps = 14,
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
-            Slider(
-                value = appearance.imageOpacity,
-                onValueChange = onOpacityChanged,
-                valueRange = 0.25f..1f,
-                steps = 14,
-                enabled = appearance.skin.hasImage,
-                modifier = Modifier.fillMaxWidth(),
-            )
         }
     }
 }
@@ -205,7 +233,10 @@ private fun SkinPreviewCard(
             },
         ),
         shape = shape,
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        colors = CardDefaults.cardColors(
+            containerColor = Color.Transparent,
+            contentColor = MaterialTheme.colorScheme.onSurface,
+        ),
     ) {
         Box(
             modifier = Modifier
@@ -213,7 +244,9 @@ private fun SkinPreviewCard(
                 .height(188.dp)
                 .clip(shape),
         ) {
-            val previewColor = Color(appearance.color.swatchArgb)
+            val previewColor = Color(
+                if (skin.hasImage) skin.defaultColor.swatchArgb else appearance.color.swatchArgb,
+            )
             Box(
                 modifier = Modifier
                     .fillMaxSize()

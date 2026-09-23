@@ -11,6 +11,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -55,6 +56,7 @@ import com.example.simpleledger.AppContainer
 import com.example.simpleledger.domain.model.LedgerAppearance
 import com.example.simpleledger.domain.model.LedgerMode
 import com.example.simpleledger.ui.backup.NutstoreBackupScreen
+import com.example.simpleledger.ui.backup.CloudBackupManagementScreen
 import com.example.simpleledger.ui.editor.EditorScreen
 import com.example.simpleledger.ui.home.HomeScreen
 import com.example.simpleledger.ui.recurring.RecurringEditorScreen
@@ -79,6 +81,7 @@ private object Routes {
     const val RECURRING_EDITOR_WITH_ID = "recurring-editor/{ruleId}"
     const val TRANSFER = "transfer"
     const val NUTSTORE_BACKUP = "nutstore-backup"
+    const val CLOUD_BACKUP_MANAGEMENT = "cloud-backup-management"
     const val SKIN_PICKER = "skin-picker"
 
     fun editor(transactionId: String): String = "editor/${Uri.encode(transactionId)}"
@@ -156,6 +159,7 @@ fun LedgerApp(
         Scaffold(
             modifier = Modifier.fillMaxSize(),
             containerColor = Color.Transparent,
+            contentColor = MaterialTheme.colorScheme.onBackground,
             contentWindowInsets = WindowInsets(0, 0, 0, 0),
             bottomBar = {
                 AnimatedVisibility(
@@ -195,11 +199,13 @@ fun LedgerApp(
                     }
                 }
             },
-        ) {
+        ) { scaffoldPadding ->
             NavHost(
                 navController = navController,
                 startDestination = Routes.HOME,
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .consumeWindowInsets(scaffoldPadding),
                 enterTransition = { fadeIn(animationSpec = tween(durationMillis = 170, delayMillis = 40)) },
                 exitTransition = { fadeOut(animationSpec = tween(120)) },
                 popEnterTransition = { fadeIn(animationSpec = tween(durationMillis = 170, delayMillis = 40)) },
@@ -232,7 +238,6 @@ fun LedgerApp(
                 composable(Routes.SETTINGS) {
                     SettingsScreen(
                         mode = mode,
-                        appearance = appearance,
                         onModeChanged = container.preferences::setMode,
                         onSkinPicker = { navController.navigate(Routes.SKIN_PICKER) },
                         onTransfer = { navController.navigate(Routes.TRANSFER) },
@@ -310,6 +315,13 @@ fun LedgerApp(
                 }
                 composable(Routes.NUTSTORE_BACKUP) {
                     NutstoreBackupScreen(
+                        manager = container.nutstoreBackupManager,
+                        onBack = { navController.popBackStack() },
+                        onManageBackups = { navController.navigate(Routes.CLOUD_BACKUP_MANAGEMENT) },
+                    )
+                }
+                composable(Routes.CLOUD_BACKUP_MANAGEMENT) {
+                    CloudBackupManagementScreen(
                         manager = container.nutstoreBackupManager,
                         onBack = { navController.popBackStack() },
                     )

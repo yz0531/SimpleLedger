@@ -2,6 +2,8 @@ package com.example.simpleledger.data.transfer
 
 import com.example.simpleledger.domain.model.Categories
 import com.example.simpleledger.domain.model.LedgerTransaction
+import com.example.simpleledger.domain.model.MAX_LEDGER_NOTE_LENGTH
+import com.example.simpleledger.domain.model.MAX_RECURRING_RULE_ID_LENGTH
 import com.example.simpleledger.domain.model.RecurringFrequency
 import com.example.simpleledger.domain.model.RecurringRule
 import com.example.simpleledger.domain.model.TransactionType
@@ -61,8 +63,6 @@ class BackupCodec(
         return json.encodeToString(document)
     }
 
-    fun decode(bytes: ByteArray): List<LedgerTransaction> = decodeBackup(bytes).transactions
-
     fun decodeBackup(bytes: ByteArray): LedgerBackup {
         if (bytes.size > MAX_FILE_BYTES) {
             throw BackupValidationException("备份文件不能超过 10 MB")
@@ -79,8 +79,6 @@ class BackupCodec(
         }
         return decodeBackup(text.removePrefix("\uFEFF"), checkSize = false)
     }
-
-    fun decode(text: String): List<LedgerTransaction> = decodeBackup(text).transactions
 
     fun decodeBackup(text: String): LedgerBackup = decodeBackup(text, checkSize = true)
 
@@ -159,8 +157,8 @@ class BackupCodec(
         if (!DateValidator.isValidIsoLocalDate(transaction.occurredOn)) {
             throw BackupValidationException("$prefix 的日期无效，应使用 yyyy-MM-dd")
         }
-        if (transaction.note.length > MAX_NOTE_LENGTH) {
-            throw BackupValidationException("$prefix 的备注不能超过 $MAX_NOTE_LENGTH 个字符")
+        if (transaction.note.length > MAX_LEDGER_NOTE_LENGTH) {
+            throw BackupValidationException("$prefix 的备注不能超过 $MAX_LEDGER_NOTE_LENGTH 个字符")
         }
         if (transaction.createdAtEpochMs < 0L || transaction.updatedAtEpochMs < transaction.createdAtEpochMs) {
             throw BackupValidationException("$prefix 的创建或更新时间无效")
@@ -192,8 +190,8 @@ class BackupCodec(
             if (category.type != rule.type) {
                 throw BackupValidationException("$prefix 的分类与收支类型不匹配")
             }
-            if (rule.note.length > MAX_NOTE_LENGTH) {
-                throw BackupValidationException("$prefix 的备注不能超过 $MAX_NOTE_LENGTH 个字符")
+            if (rule.note.length > MAX_LEDGER_NOTE_LENGTH) {
+                throw BackupValidationException("$prefix 的备注不能超过 $MAX_LEDGER_NOTE_LENGTH 个字符")
             }
             if (!DateValidator.isValidIsoLocalDate(rule.startDate) ||
                 !DateValidator.isValidIsoLocalDate(rule.nextExecutionDate)
@@ -282,9 +280,7 @@ class BackupCodec(
         const val MAX_FILE_BYTES = 10 * 1024 * 1024
         const val MAX_TRANSACTION_COUNT = 50_000
         const val MAX_RECURRING_RULE_COUNT = 10_000
-        const val MAX_NOTE_LENGTH = 500
         const val MAX_ID_LENGTH = 128
-        const val MAX_RECURRING_RULE_ID_LENGTH = 80
 
         private val defaultJson = Json {
             prettyPrint = true

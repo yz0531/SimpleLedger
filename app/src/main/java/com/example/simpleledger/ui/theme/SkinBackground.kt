@@ -54,7 +54,11 @@ fun SkinBackground(
     modifier: Modifier = Modifier,
     content: @Composable BoxScope.() -> Unit,
 ) {
-    val darkTheme = isSystemInDarkTheme()
+    val darkTheme = if (appearance.skin.hasImage) {
+        appearance.skin.prefersDarkUi
+    } else {
+        isSystemInDarkTheme()
+    }
     val baseColor = Color(
         if (darkTheme) appearance.color.darkBackgroundArgb else appearance.color.lightBackgroundArgb,
     )
@@ -72,34 +76,20 @@ fun SkinBackground(
                 alpha = appearance.imageOpacity,
             )
         }
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    when {
-                        !appearance.skin.hasImage -> Brush.verticalGradient(
+        if (!appearance.skin.hasImage) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
                             listOf(
                                 Color.Transparent,
                                 MaterialTheme.colorScheme.background.copy(alpha = 0.20f),
                             ),
-                        )
-                        darkTheme -> Brush.verticalGradient(
-                            listOf(
-                                Color(0x52141817),
-                                Color(0x70111514),
-                                Color(0x8A111514),
-                            ),
-                        )
-                        else -> Brush.verticalGradient(
-                            listOf(
-                                Color.White.copy(alpha = 0.14f),
-                                Color.White.copy(alpha = 0.22f),
-                                MaterialTheme.colorScheme.background.copy(alpha = 0.34f),
-                            ),
-                        )
-                    },
-                ),
-        )
+                        ),
+                    ),
+            )
+        }
         content()
     }
 }

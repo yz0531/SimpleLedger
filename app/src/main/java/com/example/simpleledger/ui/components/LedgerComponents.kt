@@ -1,8 +1,8 @@
 package com.example.simpleledger.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -55,15 +55,18 @@ fun MonthSummaryCard(
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        colors = CardDefaults.cardColors(
+            containerColor = Color.Transparent,
+            contentColor = colors.onSurface,
+        ),
     ) {
         Column(
             modifier = Modifier
                 .background(
                     Brush.linearGradient(
                         listOf(
-                            colors.primary.copy(alpha = 0.92f),
-                            colors.tertiary.copy(alpha = 0.84f),
+                            colors.primary.copy(alpha = 0.84f),
+                            colors.tertiary.copy(alpha = 0.72f),
                         ),
                     ),
                 )
@@ -185,20 +188,27 @@ fun TransactionRow(
 ) {
     val isIncome = transaction.type == TransactionType.INCOME
     val category = Categories.find(transaction.categoryId)
+    val colors = MaterialTheme.colorScheme
+    val typeContainer = if (isIncome) colors.primaryContainer else colors.errorContainer
+    val rowBrush = Brush.horizontalGradient(
+        listOf(
+            typeContainer.copy(alpha = 0.82f),
+            colors.surface.copy(alpha = 0.70f),
+            colors.surfaceContainerLow.copy(alpha = 0.58f),
+        ),
+    )
     Surface(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
-            .clickable(onClick = onClick)
-            .border(
-                width = 1.dp,
-                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
-                shape = RoundedCornerShape(20.dp),
-            ),
-        color = MaterialTheme.colorScheme.surfaceContainerLowest,
+        onClick = onClick,
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        color = Color.Transparent,
+        contentColor = colors.onSurface,
+        border = BorderStroke(1.dp, typeContainer.copy(alpha = 0.62f)),
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 13.dp),
+            modifier = Modifier
+                .background(rowBrush)
+                .padding(horizontal = 14.dp, vertical = 13.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
@@ -207,9 +217,9 @@ fun TransactionRow(
                     .clip(RoundedCornerShape(15.dp))
                     .background(
                         if (isIncome) {
-                            MaterialTheme.colorScheme.primaryContainer
+                            colors.primaryContainer
                         } else {
-                            MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.72f)
+                            colors.errorContainer.copy(alpha = 0.86f)
                         },
                     ),
                 contentAlignment = Alignment.Center,
@@ -218,9 +228,9 @@ fun TransactionRow(
                     imageVector = categoryIcon(transaction.categoryId),
                     contentDescription = category?.label,
                     tint = if (isIncome) {
-                        MaterialTheme.colorScheme.onPrimaryContainer
+                        colors.onPrimaryContainer
                     } else {
-                        MaterialTheme.colorScheme.onErrorContainer
+                        colors.onErrorContainer
                     },
                 )
             }
@@ -237,7 +247,7 @@ fun TransactionRow(
                     Text(
                         text = transaction.note,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = colors.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -252,7 +262,7 @@ fun TransactionRow(
                 },
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = if (isIncome) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                color = if (isIncome) colors.primary else colors.error,
             )
         }
     }

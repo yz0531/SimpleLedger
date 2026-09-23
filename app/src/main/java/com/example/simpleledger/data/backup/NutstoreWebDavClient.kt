@@ -74,7 +74,7 @@ class NutstoreWebDavClient(
             .build()
         execute(request).use { response ->
             if (response.code !in 200..299 && response.code != 404) {
-                throw response.toBackupException("清理旧备份失败")
+                throw response.toBackupException("删除云端备份失败")
             }
         }
     }

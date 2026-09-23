@@ -4,6 +4,7 @@ import android.content.ContentResolver
 import android.content.Context
 import android.net.Uri
 import com.example.simpleledger.domain.model.ExportResult
+import com.example.simpleledger.domain.model.ClearDataResult
 import com.example.simpleledger.domain.model.ImportResult
 import com.example.simpleledger.domain.repository.LedgerRepository
 import java.io.BufferedOutputStream
@@ -34,7 +35,6 @@ class DataTransferManager(
         write(uri, bytes)
         ExportResult(
             exportedCount = backup.transactions.size,
-            bytesWritten = bytes.size.toLong(),
             recurringRuleCount = backup.recurringRules.size,
         )
     }
@@ -45,7 +45,6 @@ class DataTransferManager(
         write(uri, bytes)
         ExportResult(
             exportedCount = transactions.size,
-            bytesWritten = bytes.size.toLong(),
         )
     }
 
@@ -53,6 +52,10 @@ class DataTransferManager(
         val bytes = readBounded(uri)
         val backup = backupCodec.decodeBackup(bytes)
         backupStore.import(backup)
+    }
+
+    suspend fun clearLocalData(): ClearDataResult = withContext(ioDispatcher) {
+        backupStore.clearAll()
     }
 
     private fun write(uri: Uri, bytes: ByteArray) {

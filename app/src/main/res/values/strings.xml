@@ -1,17 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">简账</string>
-    <string name="balance">结余</string>
-    <string name="income">收入</string>
-    <string name="expense">支出</string>
-    <string name="add_transaction">记一笔</string>
-    <string name="records">账单</string>
-    <string name="statistics">统计</string>
-    <string name="export_data">导出数据</string>
-    <string name="import_data">导入数据</string>
-    <string name="save">保存</string>
-    <string name="cancel">取消</string>
-    <string name="delete">删除</string>
-    <string name="edit">编辑</string>
-    <string name="no_records">还没有账单，记下第一笔吧</string>
 </resources>

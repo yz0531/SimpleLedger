@@ -38,7 +38,7 @@ class BackupCodecTest {
     fun jsonRoundTripPreservesTransactions() {
         val codec = BackupCodec(clock = { 300L })
 
-        val decoded = codec.decode(codec.encode(listOf(transaction)))
+        val decoded = codec.decodeBackup(codec.encode(listOf(transaction))).transactions
 
         assertEquals(listOf(transaction), decoded)
     }
@@ -60,7 +60,7 @@ class BackupCodecTest {
             .replace("\"schemaVersion\": 2", "\"schemaVersion\": 99")
 
         assertThrows(BackupValidationException::class.java) {
-            codec.decode(invalid)
+            codec.decodeBackup(invalid)
         }
     }
 
@@ -71,7 +71,7 @@ class BackupCodecTest {
             .replace(Categories.expenseFood.id, "expense.unknown")
 
         assertThrows(BackupValidationException::class.java) {
-            codec.decode(invalid)
+            codec.decodeBackup(invalid)
         }
     }
 
@@ -82,7 +82,7 @@ class BackupCodecTest {
             .replace("\"currency\": \"CNY\"", "\"currency\": \"CNY\", \"unexpected\": true")
 
         assertThrows(BackupValidationException::class.java) {
-            codec.decode(invalid)
+            codec.decodeBackup(invalid)
         }
     }
 
@@ -91,7 +91,7 @@ class BackupCodecTest {
         val oversized = ByteArray(BackupCodec.MAX_FILE_BYTES + 1) { ' '.code.toByte() }
 
         assertThrows(BackupValidationException::class.java) {
-            BackupCodec().decode(oversized)
+            BackupCodec().decodeBackup(oversized)
         }
     }
 

@@ -2,8 +2,8 @@ package com.example.simpleledger.data.transfer
 
 import com.example.simpleledger.domain.model.Categories
 import com.example.simpleledger.domain.model.LedgerTransaction
-import com.example.simpleledger.util.MoneyFormatter
 import java.io.ByteArrayOutputStream
+import java.math.BigDecimal
 
 class CsvExporter {
     fun encode(transactions: List<LedgerTransaction>): ByteArray {
@@ -14,8 +14,6 @@ class CsvExporter {
             output.toByteArray()
         }
     }
-
-    fun export(transactions: List<LedgerTransaction>): ByteArray = encode(transactions)
 
     fun encodeToString(transactions: List<LedgerTransaction>): String = buildString {
         append(
@@ -39,7 +37,7 @@ class CsvExporter {
             val values = listOf(
                 transaction.id,
                 transaction.type.wireValue,
-                MoneyFormatter.toPlainAmount(transaction.amountMinor),
+                BigDecimal.valueOf(transaction.amountMinor, 2).toPlainString(),
                 transaction.amountMinor.toString(),
                 BackupCodec.CURRENCY,
                 transaction.categoryId,

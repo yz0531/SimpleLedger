@@ -18,10 +18,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Backup
+import androidx.compose.material.icons.rounded.DeleteForever
 import androidx.compose.material.icons.rounded.Restore
 import androidx.compose.material.icons.rounded.TableChart
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -60,6 +62,7 @@ private enum class TransferOperation {
     EXPORT_JSON,
     EXPORT_CSV,
     IMPORT_JSON,
+    CLEAR_ALL,
 }
 
 @Composable
@@ -73,6 +76,7 @@ fun TransferScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     var operation by remember { mutableStateOf<TransferOperation?>(null) }
     var pendingImportUri by rememberSaveable { mutableStateOf<Uri?>(null) }
+    var showClearConfirmation by rememberSaveable { mutableStateOf(false) }
 
     fun failureMessage(throwable: Throwable, fallback: String): String = when (throwable) {
         is BackupValidationException -> throwable.message ?: "备份文件格式不正确"
@@ -166,9 +170,56 @@ fun TransferScreen(
         )
     }
 
+    if (showClearConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showClearConfirmation = false },
+            title = { Text("清空本机全部数据？") },
+            text = {
+                Text(
+                    "将永久删除本机的全部账目和周期规则，且无法撤销。" +
+                        "本次操作不会连接坚果云、上传空账本或删除任何备份文件，建议先完成备份。",
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showClearConfirmation = false
+                        scope.launch {
+                            operation = TransferOperation.CLEAR_ALL
+                            val outcome = runSuspendCatching { transferManager.clearLocalData() }
+                            operation = null
+                            outcome.fold(
+                                onSuccess = { result ->
+                                    val deletedCount = result.deletedTransactionCount +
+                                        result.deletedRecurringRuleCount
+                                    snackbarHostState.showSnackbar(
+                                        if (deletedCount == 0) {
+                                            "账本已经是空的"
+                                        } else {
+                                            "已清空 ${result.deletedTransactionCount} 笔账目和 " +
+                                                "${result.deletedRecurringRuleCount} 条周期规则"
+                                        },
+                                    )
+                                },
+                                onFailure = { snackbarHostState.showSnackbar(failureMessage(it, "清空失败")) },
+                            )
+                        }
+                    },
+                    enabled = operation == null,
+                ) {
+                    Text("确认清空本机", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearConfirmation = false }) { Text("取消") }
+            },
+        )
+    }
+
     Scaffold(
         modifier = modifier,
         containerColor = Color.Transparent,
+        contentColor = MaterialTheme.colorScheme.onBackground,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             CompactTopBar(
@@ -241,6 +292,12 @@ fun TransferScreen(
                     }
                 }
                 item {
+                    DangerTransferCard(
+                        onClear = { showClearConfirmation = true },
+                        enabled = operation == null,
+                    )
+                }
+                item {
                     Text(
                         text = "提示：建议定期保存完整备份。CSV 适合查看和分析，不能用于恢复账本。",
                         style = MaterialTheme.typography.bodyMedium,
@@ -262,12 +319,68 @@ fun TransferScreen(
                     ) {
                         CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.5.dp)
                         Text(
-                            text = if (operation == TransferOperation.IMPORT_JSON) "正在导入…" else "正在导出…",
+                            text = when (operation) {
+                                TransferOperation.IMPORT_JSON -> "正在导入…"
+                                TransferOperation.CLEAR_ALL -> "正在清空…"
+                                else -> "正在导出…"
+                            },
                             modifier = Modifier.padding(start = 14.dp),
                             fontWeight = FontWeight.SemiBold,
                         )
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DangerTransferCard(
+    onClear: () -> Unit,
+    enabled: Boolean,
+) {
+    val colors = MaterialTheme.colorScheme
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = colors.errorContainer.copy(alpha = 0.58f),
+            contentColor = colors.onSurface,
+        ),
+    ) {
+        Column(Modifier.padding(20.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                androidx.compose.material3.Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = colors.errorContainer,
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.DeleteForever,
+                        contentDescription = null,
+                        modifier = Modifier.padding(10.dp),
+                        tint = colors.onErrorContainer,
+                    )
+                }
+                Text(
+                    text = "清空本机数据",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = colors.onErrorContainer,
+                    modifier = Modifier.padding(start = 12.dp),
+                )
+            }
+            Text(
+                text = "永久删除本机全部账目和周期规则，不上传空账本，也不删除备份文件。",
+                style = MaterialTheme.typography.bodyMedium,
+                color = colors.onErrorContainer,
+                modifier = Modifier.padding(top = 10.dp, bottom = 18.dp),
+            )
+            OutlinedButton(
+                onClick = onClear,
+                enabled = enabled,
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = colors.error),
+            ) {
+                Icon(Icons.Rounded.DeleteForever, contentDescription = null)
+                Text("清空本机数据", modifier = Modifier.padding(start = 8.dp))
             }
         }
     }

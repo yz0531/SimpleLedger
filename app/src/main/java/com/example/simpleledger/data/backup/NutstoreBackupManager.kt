@@ -3,6 +3,7 @@ package com.example.simpleledger.data.backup
 import com.example.simpleledger.data.transfer.BackupCodec
 import com.example.simpleledger.data.transfer.LedgerBackup
 import com.example.simpleledger.data.transfer.LedgerBackupStore
+import com.example.simpleledger.domain.model.ImportResult
 import java.security.MessageDigest
 import java.time.Instant
 import java.time.ZoneId
@@ -24,12 +25,22 @@ data class NutstoreBackupStatus(
     val isError: Boolean = false,
 )
 
-enum class AutomaticBackupResult {
-    BACKED_UP,
-    UNCHANGED,
-    DISABLED,
-    NOT_CONFIGURED,
+enum class NutstoreBackupKind {
+    AUTOMATIC,
+    MANUAL,
 }
+
+data class NutstoreBackupFile(
+    val fileName: String,
+    val kind: NutstoreBackupKind,
+    val timestampText: String,
+    val createdAtEpochMs: Long?,
+)
+
+data class NutstoreBackupCatalog(
+    val files: List<NutstoreBackupFile> = emptyList(),
+    val hasLoaded: Boolean = false,
+)
 
 class NutstoreBackupManager(
     private val backupStore: LedgerBackupStore,
@@ -42,11 +53,15 @@ class NutstoreBackupManager(
 ) {
     private val operationMutex = Mutex()
     private val mutableStatus = MutableStateFlow(NutstoreBackupStatus())
+    private val mutableBackupCatalog = MutableStateFlow(NutstoreBackupCatalog())
 
     val settings: StateFlow<NutstoreSettings> = credentialStore.settings
     val status: StateFlow<NutstoreBackupStatus> = mutableStatus.asStateFlow()
+    val backupCatalog: StateFlow<NutstoreBackupCatalog> = mutableBackupCatalog.asStateFlow()
 
-    suspend fun connectAndSave(username: String, password: String): Boolean = runOperation(
+    fun savedCredentials(): NutstoreCredentials? = credentialStore.credentials()
+
+    suspend fun connectAndSave(username: String, password: String): Unit = runOperation(
         runningMessage = "正在连接坚果云…",
         successMessage = "坚果云已连接，备份目录已准备好",
     ) {
@@ -57,8 +72,7 @@ class NutstoreBackupManager(
             clientFactory(credentials).ensureBackupDirectory()
         }
         credentialStore.saveCredentials(credentials.username, credentials.password)
-        true
-    } ?: false
+    }
 
     fun setAutomaticBackupEnabled(enabled: Boolean) {
         credentialStore.setAutomaticBackupEnabled(enabled)
@@ -67,7 +81,7 @@ class NutstoreBackupManager(
         )
     }
 
-    suspend fun manualBackup(): Boolean = runOperation(
+    suspend fun manualBackup(): Unit = runOperation(
         runningMessage = "正在上传备份…",
         successMessage = "已备份到坚果云",
     ) {
@@ -78,18 +92,30 @@ class NutstoreBackupManager(
             val timestamp = clock()
             val client = clientFactory(credentials)
             client.ensureBackupDirectory()
+            val uploadedFile = NutstoreBackupFiles.manualName(timestamp)
             client.upload(
-                NutstoreBackupFiles.manualName(timestamp),
+                uploadedFile,
                 backupCodec.encode(snapshot.transactions, snapshot.recurringRules),
             )
             credentialStore.markBackupSucceeded(fingerprint, timestamp)
+            addUploadedFileToLoadedCatalog(uploadedFile)
         }
-        true
-    } ?: false
+    }
 
-    suspend fun restoreLatestBackup(): Boolean = runOperation(
+    suspend fun refreshBackupFiles(): Unit = runOperation(
+        runningMessage = "正在读取云端备份…",
+    ) {
+        val credentials = requireCredentials()
+        val files = withContext(ioDispatcher) {
+            val client = clientFactory(credentials)
+            client.ensureBackupDirectory()
+            NutstoreBackupFiles.managedFiles(client.listBackupFiles())
+        }
+        mutableBackupCatalog.value = NutstoreBackupCatalog(files = files, hasLoaded = true)
+    }
+
+    suspend fun restoreLatestBackup(): Unit = runOperation(
         runningMessage = "正在下载最近备份…",
-        successMessage = null,
     ) {
         val credentials = requireCredentials()
         val restored = withContext(ioDispatcher) {
@@ -101,6 +127,124 @@ class NutstoreBackupManager(
             val result = backupStore.import(backup)
             latestFile to result
         }
+        val (latestFile, result) = restored
+        publishRestoreResult(latestFile, result)
+    }
+
+    suspend fun restoreBackup(fileName: String): Unit = runOperation(
+        runningMessage = "正在下载所选备份…",
+    ) {
+        val managedFile = NutstoreBackupFiles.fromName(fileName)
+            ?: throw IllegalArgumentException("只能恢复本应用创建的云端备份")
+        val credentials = requireCredentials()
+        val restored = withContext(ioDispatcher) {
+            val client = clientFactory(credentials)
+            client.ensureBackupDirectory()
+            val backup = backupCodec.decodeBackup(client.download(managedFile.fileName))
+            val result = backupStore.import(backup)
+            managedFile.fileName to result
+        }
+        publishRestoreResult(restored.first, restored.second)
+    }
+
+    suspend fun deleteBackup(fileName: String): Unit = runOperation(
+        runningMessage = "正在删除云端备份…",
+        successMessage = "所选云端备份已删除",
+    ) {
+        val managedFile = NutstoreBackupFiles.fromName(fileName)
+            ?: throw IllegalArgumentException("只能删除本应用创建的云端备份")
+        val credentials = requireCredentials()
+        withContext(ioDispatcher) {
+            val client = clientFactory(credentials)
+            client.ensureBackupDirectory()
+            client.delete(managedFile.fileName)
+        }
+        val current = mutableBackupCatalog.value
+        mutableBackupCatalog.value = current.copy(
+            files = current.files.filterNot { it.fileName == managedFile.fileName },
+            hasLoaded = true,
+        )
+    }
+
+    suspend fun automaticBackupIfChanged() {
+        val settings = credentialStore.settings.value
+        if (!settings.automaticBackupEnabled) return
+        val credentials = credentialStore.credentials() ?: run {
+            if (settings.hasCredentials) {
+                mutableStatus.value = NutstoreBackupStatus(
+                    message = "无法读取已保存的密码，请在设置中重新连接坚果云",
+                    isError = true,
+                )
+            }
+            return
+        }
+
+        runOperation(
+            runningMessage = "正在检查自动备份…",
+        ) {
+            withContext(ioDispatcher) {
+                val snapshot = backupStore.snapshot()
+                if (!snapshot.hasBackupContent) {
+                    mutableStatus.value = NutstoreBackupStatus(message = "账本为空，未创建自动备份")
+                    return@withContext
+                }
+                val fingerprint = BackupFingerprint.calculate(snapshot)
+                if (fingerprint == credentialStore.lastFingerprint()) {
+                    mutableStatus.value = NutstoreBackupStatus(message = "账本没有变化，无需重复备份")
+                    return@withContext
+                }
+
+                val timestamp = clock()
+                val client = clientFactory(credentials)
+                client.ensureBackupDirectory()
+                val uploadedFile = NutstoreBackupFiles.automaticName(timestamp)
+                client.upload(
+                    uploadedFile,
+                    backupCodec.encode(snapshot.transactions, snapshot.recurringRules),
+                )
+                credentialStore.markBackupSucceeded(fingerprint, timestamp)
+                addUploadedFileToLoadedCatalog(uploadedFile)
+                val cleanupFailures = mutableListOf<String>()
+                val deletedFiles = mutableSetOf<String>()
+                try {
+                    val obsoleteFiles = NutstoreBackupFiles.filesToDelete(
+                        remoteNames = client.listBackupFiles(),
+                        protectedNames = setOf(uploadedFile),
+                    )
+                    obsoleteFiles.forEach { obsoleteFile ->
+                        try {
+                            client.delete(obsoleteFile)
+                            deletedFiles += obsoleteFile
+                        } catch (exception: CancellationException) {
+                            throw exception
+                        } catch (exception: Exception) {
+                            cleanupFailures += obsoleteFile
+                        }
+                    }
+                } catch (exception: CancellationException) {
+                    throw exception
+                } catch (exception: Exception) {
+                    cleanupFailures += "旧备份列表"
+                }
+                removeFilesFromLoadedCatalog(deletedFiles)
+                mutableStatus.value = NutstoreBackupStatus(
+                    message = if (cleanupFailures.isEmpty()) {
+                        "账本有变化，已自动备份到坚果云"
+                    } else {
+                        "自动备份已上传；部分旧备份暂未清理，下次会继续处理"
+                    },
+                )
+            }
+        }
+    }
+
+    private fun requireCredentials(): NutstoreCredentials = credentialStore.credentials()
+        ?: throw IllegalStateException("请先输入账号和第三方应用密码并完成连接")
+
+    private suspend fun publishRestoreResult(
+        fileName: String,
+        result: ImportResult,
+    ) {
         val maintenanceWarning = try {
             postRestoreMaintenance()
             null
@@ -109,11 +253,10 @@ class NutstoreBackupManager(
         } catch (exception: Exception) {
             "；数据已恢复，但周期账单维护未完成，下次进入应用会自动重试"
         }
-        val (latestFile, result) = restored
         mutableStatus.value = NutstoreBackupStatus(
             message = buildString {
                 append("已从 ")
-                append(latestFile)
+                append(fileName)
                 append(" 恢复：账目新增 ")
                 append(result.insertedCount)
                 append(" 条、更新 ")
@@ -127,106 +270,45 @@ class NutstoreBackupManager(
             },
             isError = maintenanceWarning != null,
         )
-        true
-    } ?: false
-
-    suspend fun automaticBackupIfChanged(): AutomaticBackupResult {
-        val settings = credentialStore.settings.value
-        if (!settings.automaticBackupEnabled) return AutomaticBackupResult.DISABLED
-        val credentials = credentialStore.credentials() ?: run {
-            if (settings.hasCredentials) {
-                mutableStatus.value = NutstoreBackupStatus(
-                    message = "无法读取已保存的密码，请在设置中重新连接坚果云",
-                    isError = true,
-                )
-            }
-            return AutomaticBackupResult.NOT_CONFIGURED
-        }
-
-        return runOperation(
-            runningMessage = "正在检查自动备份…",
-            successMessage = null,
-            reportErrors = true,
-        ) {
-            withContext(ioDispatcher) {
-                val snapshot = backupStore.snapshot()
-                val fingerprint = BackupFingerprint.calculate(snapshot)
-                if (fingerprint == credentialStore.lastFingerprint()) {
-                    mutableStatus.value = NutstoreBackupStatus(message = "账本没有变化，无需重复备份")
-                    return@withContext AutomaticBackupResult.UNCHANGED
-                }
-
-                val timestamp = clock()
-                val client = clientFactory(credentials)
-                client.ensureBackupDirectory()
-                val uploadedFile = NutstoreBackupFiles.automaticName(timestamp)
-                client.upload(
-                    uploadedFile,
-                    backupCodec.encode(snapshot.transactions, snapshot.recurringRules),
-                )
-                credentialStore.markBackupSucceeded(fingerprint, timestamp)
-                val cleanupFailures = mutableListOf<String>()
-                try {
-                    val obsoleteFiles = NutstoreBackupFiles.filesToDelete(
-                        remoteNames = client.listBackupFiles(),
-                        protectedNames = setOf(uploadedFile),
-                    )
-                    obsoleteFiles.forEach { obsoleteFile ->
-                        try {
-                            client.delete(obsoleteFile)
-                        } catch (exception: CancellationException) {
-                            throw exception
-                        } catch (exception: Exception) {
-                            cleanupFailures += obsoleteFile
-                        }
-                    }
-                } catch (exception: CancellationException) {
-                    throw exception
-                } catch (exception: Exception) {
-                    cleanupFailures += "旧备份列表"
-                }
-                mutableStatus.value = NutstoreBackupStatus(
-                    message = if (cleanupFailures.isEmpty()) {
-                        "账本有变化，已自动备份到坚果云"
-                    } else {
-                        "自动备份已上传；部分旧备份暂未清理，下次会继续处理"
-                    },
-                )
-                AutomaticBackupResult.BACKED_UP
-            }
-        } ?: AutomaticBackupResult.NOT_CONFIGURED
     }
 
-    private fun requireCredentials(): NutstoreCredentials = credentialStore.credentials()
-        ?: throw IllegalStateException("请先输入账号和第三方应用密码并完成连接")
+    private fun addUploadedFileToLoadedCatalog(fileName: String) {
+        val current = mutableBackupCatalog.value
+        if (!current.hasLoaded) return
+        mutableBackupCatalog.value = current.copy(
+            files = NutstoreBackupFiles.managedFiles(current.files.map { it.fileName } + fileName),
+        )
+    }
 
-    private suspend fun <T> runOperation(
+    private fun removeFilesFromLoadedCatalog(fileNames: Set<String>) {
+        if (fileNames.isEmpty()) return
+        val current = mutableBackupCatalog.value
+        if (!current.hasLoaded) return
+        mutableBackupCatalog.value = current.copy(
+            files = current.files.filterNot { it.fileName in fileNames },
+        )
+    }
+
+    private suspend fun runOperation(
         runningMessage: String,
-        successMessage: String?,
-        reportErrors: Boolean = true,
-        block: suspend () -> T,
-    ): T? = operationMutex.withLock {
+        successMessage: String? = null,
+        block: suspend () -> Unit,
+    ): Unit = operationMutex.withLock {
         mutableStatus.value = NutstoreBackupStatus(isRunning = true, message = runningMessage)
         try {
-            val result = block()
+            block()
             if (successMessage != null) {
                 mutableStatus.value = NutstoreBackupStatus(message = successMessage)
             } else if (mutableStatus.value.isRunning) {
                 mutableStatus.value = NutstoreBackupStatus()
             }
-            result
         } catch (exception: CancellationException) {
             throw exception
         } catch (exception: Exception) {
-            if (reportErrors) {
-                mutableStatus.value = NutstoreBackupStatus(
-                    message = exception.message ?: "坚果云备份失败，请稍后重试",
-                    isError = true,
-                )
-            } else {
-                mutableStatus.value = NutstoreBackupStatus()
-            }
-            null
+            mutableStatus.value = NutstoreBackupStatus(
+                message = exception.message ?: "坚果云备份失败，请稍后重试",
+                isError = true,
+            )
         }
     }
 }
@@ -245,13 +327,13 @@ internal object BackupFingerprint {
     }
 }
 
+internal val LedgerBackup.hasBackupContent: Boolean
+    get() = transactions.isNotEmpty() || recurringRules.isNotEmpty()
+
 internal object NutstoreBackupFiles {
     private val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss-SSS")
-    private val automaticPattern = Regex(
-        "^auto_(\\d{4}-\\d{2}-\\d{2}_\\d{2}-\\d{2}-\\d{2}-\\d{3})(?:_e(\\d{1,19}))?\\.json$",
-    )
     private val backupPattern = Regex(
-        "^(?:auto|manual)_(\\d{4}-\\d{2}-\\d{2}_\\d{2}-\\d{2}-\\d{2}-\\d{3})(?:_e(\\d{1,19}))?\\.json$",
+        "^(auto|manual)_(\\d{4}-\\d{2}-\\d{2}_\\d{2}-\\d{2}-\\d{2}-\\d{3})(?:_e(\\d{1,19}))?\\.json$",
     )
 
     fun automaticName(epochMs: Long, zoneId: ZoneId = ZoneOffset.UTC): String =
@@ -265,46 +347,63 @@ internal object NutstoreBackupFiles {
         keep: Int = 3,
         protectedNames: Set<String> = emptySet(),
     ): List<String> {
-        val parsed = remoteNames.mapNotNull { name -> parse(name, automaticPattern) }.sortedDescending()
+        val automaticFiles = managedFiles(remoteNames)
+            .filter { it.kind == NutstoreBackupKind.AUTOMATIC }
         val keepCount = keep.coerceAtLeast(0)
         val retained = linkedSetOf<String>()
-        parsed.filter { it.name in protectedNames }.take(keepCount).forEach { retained += it.name }
-        parsed.filterNot { it.name in retained }
+        automaticFiles
+            .filter { it.fileName in protectedNames }
+            .take(keepCount)
+            .forEach { retained += it.fileName }
+        automaticFiles
+            .filterNot { it.fileName in retained }
             .take((keepCount - retained.size).coerceAtLeast(0))
-            .forEach { retained += it.name }
-        return parsed.map { it.name }.filterNot { it in retained }
+            .forEach { retained += it.fileName }
+        return automaticFiles.map { it.fileName }.filterNot { it in retained }
     }
 
-    fun mostRecent(remoteNames: List<String>): String? = remoteNames
-        .mapNotNull { name -> parse(name, backupPattern) }
-        .maxOrNull()
-        ?.name
+    fun mostRecent(remoteNames: List<String>): String? = managedFiles(remoteNames)
+        .firstOrNull()
+        ?.fileName
+
+    fun managedFiles(remoteNames: List<String>): List<NutstoreBackupFile> = remoteNames
+        .distinct()
+        .mapNotNull(::parseManaged)
+        .sortedWith { first, second -> compareManaged(second, first) }
+
+    fun fromName(name: String): NutstoreBackupFile? = parseManaged(name)
 
     private fun format(epochMs: Long, zoneId: ZoneId): String =
         Instant.ofEpochMilli(epochMs).atZone(zoneId).format(formatter)
 
-    private fun parse(name: String, pattern: Regex): ParsedBackupFile? {
-        val match = pattern.matchEntire(name) ?: return null
-        return ParsedBackupFile(
-            name = name,
-            timestampText = match.groupValues[1],
-            epochMs = match.groupValues.getOrNull(2)?.takeIf(String::isNotEmpty)?.toLongOrNull(),
+    private fun parseManaged(name: String): NutstoreBackupFile? {
+        val match = backupPattern.matchEntire(name) ?: return null
+        return NutstoreBackupFile(
+            fileName = name,
+            kind = if (match.groupValues[1] == "auto") {
+                NutstoreBackupKind.AUTOMATIC
+            } else {
+                NutstoreBackupKind.MANUAL
+            },
+            timestampText = match.groupValues[2],
+            createdAtEpochMs = match.groupValues.getOrNull(3)
+                ?.takeIf(String::isNotEmpty)
+                ?.toLongOrNull(),
         )
     }
 
-    private data class ParsedBackupFile(
-        val name: String,
-        val timestampText: String,
-        val epochMs: Long?,
-    ) : Comparable<ParsedBackupFile> {
-        override fun compareTo(other: ParsedBackupFile): Int {
-            if ((epochMs != null) != (other.epochMs != null)) return if (epochMs != null) 1 else -1
-            val timestampComparison = if (epochMs != null && other.epochMs != null) {
-                epochMs.compareTo(other.epochMs)
-            } else {
-                timestampText.compareTo(other.timestampText)
-            }
-            return timestampComparison.takeIf { it != 0 } ?: name.compareTo(other.name)
+    private fun compareManaged(first: NutstoreBackupFile, second: NutstoreBackupFile): Int {
+        if ((first.createdAtEpochMs != null) != (second.createdAtEpochMs != null)) {
+            return if (first.createdAtEpochMs != null) 1 else -1
         }
+        val timestampComparison = if (
+            first.createdAtEpochMs != null && second.createdAtEpochMs != null
+        ) {
+            first.createdAtEpochMs.compareTo(second.createdAtEpochMs)
+        } else {
+            first.timestampText.compareTo(second.timestampText)
+        }
+        return timestampComparison.takeIf { it != 0 }
+            ?: first.fileName.compareTo(second.fileName)
     }
 }
