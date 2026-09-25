@@ -46,7 +46,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -65,6 +68,7 @@ import com.example.simpleledger.ui.components.formatEditorDay
 import com.example.simpleledger.ui.components.parseAmountMinor
 import java.time.LocalDate
 import java.util.UUID
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
@@ -79,6 +83,8 @@ fun EditorScreen(
     val isEditing = transactionId != null
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
+    val amountFocusRequester = remember { FocusRequester() }
+    val keyboardController = LocalSoftwareKeyboardController.current
     var loadedTransaction by remember(transactionId) { mutableStateOf<LedgerTransaction?>(null) }
     var isLoading by remember(transactionId) { mutableStateOf(isEditing) }
     var isSaving by remember { mutableStateOf(false) }
@@ -95,6 +101,15 @@ fun EditorScreen(
     var showDeleteDialog by remember { mutableStateOf(false) }
     val type = TransactionType.valueOf(typeName)
     val expenseOnly = mode == LedgerMode.EXPENSE_ONLY
+
+    LaunchedEffect(isEditing) {
+        if (!isEditing) {
+            // Wait until the navigation transition has attached the text field to the window.
+            delay(120)
+            amountFocusRequester.requestFocus()
+            keyboardController?.show()
+        }
+    }
 
     fun saveTransaction() {
         if (isSaving) return
@@ -291,7 +306,8 @@ fun EditorScreen(
                             },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(top = 6.dp),
+                                .padding(top = 6.dp)
+                                .focusRequester(amountFocusRequester),
                             prefix = { Text("¥ ") },
                             placeholder = { Text("0.00") },
                             singleLine = true,
