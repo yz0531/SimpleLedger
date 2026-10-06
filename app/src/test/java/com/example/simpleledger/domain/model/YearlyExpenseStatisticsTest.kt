@@ -1,5 +1,6 @@
 package com.example.simpleledger.domain.model
 
+import java.time.YearMonth
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -26,7 +27,7 @@ class YearlyExpenseStatisticsTest {
         assertEquals(0L, statistics.expenseForMonth(2))
         assertEquals(30_000L, statistics.expenseForMonth(3))
         assertEquals(43_250L, statistics.totalExpenseMinor)
-        assertEquals(3_604L, statistics.averageMonthlyExpenseMinor)
+        assertEquals(21_625L, statistics.averageMonthlyExpenseMinor)
         assertEquals(MonthlyExpense(month = 3, amountMinor = 30_000L), statistics.highestExpenseMonth)
         assertFalse(statistics.isEmpty)
     }
@@ -59,6 +60,23 @@ class YearlyExpenseStatisticsTest {
         )
 
         assertEquals(4, statistics.highestExpenseMonth?.month)
+    }
+
+    @Test
+    fun excludesCurrentAndFutureMonthsFromCompletedStatistics() {
+        val statistics = YearlyExpenseStatistics.from(
+            transactions = listOf(
+                transaction("january", TransactionType.EXPENSE, 10_000L, "2026-01-10"),
+                transaction("march", TransactionType.EXPENSE, 30_000L, "2026-03-01"),
+                transaction("april", TransactionType.EXPENSE, 40_000L, "2026-04-01"),
+            ),
+            year = 2026,
+        ).completedBefore(YearMonth.of(2026, 3))
+
+        assertEquals(listOf(1), statistics.monthsWithExpense.map { it.month })
+        assertEquals(10_000L, statistics.totalExpenseMinor)
+        assertEquals(10_000L, statistics.averageMonthlyExpenseMinor)
+        assertEquals(0L, statistics.expenseForMonth(3))
     }
 
     private fun transaction(

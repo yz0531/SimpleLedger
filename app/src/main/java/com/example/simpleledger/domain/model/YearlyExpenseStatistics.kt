@@ -2,6 +2,7 @@ package com.example.simpleledger.domain.model
 
 import java.lang.Math.addExact
 import java.time.LocalDate
+import java.time.YearMonth
 
 data class MonthlyExpense(
     val month: Int,
@@ -27,8 +28,14 @@ data class YearlyExpenseStatistics(
         addExact(total, month.amountMinor)
     }
 
-    /** The annual total divided across all 12 calendar months, rounded down to a whole minor unit. */
-    val averageMonthlyExpenseMinor: Long = totalExpenseMinor / MONTHS_PER_YEAR
+    val monthsWithExpense: List<MonthlyExpense> = monthlyExpenses.filter { it.amountMinor > 0L }
+
+    /** The annual total divided by months that contain expenses, rounded down to a whole minor unit. */
+    val averageMonthlyExpenseMinor: Long = if (monthsWithExpense.isEmpty()) {
+        0L
+    } else {
+        totalExpenseMinor / monthsWithExpense.size
+    }
 
     /** The earliest month wins when multiple months share the same highest expense. */
     val highestExpenseMonth: MonthlyExpense? = monthlyExpenses
@@ -42,6 +49,16 @@ data class YearlyExpenseStatistics(
         require(month in 1..12) { "month must be between 1 and 12" }
         return monthlyExpenses[month - 1].amountMinor
     }
+
+    fun completedBefore(currentMonth: YearMonth): YearlyExpenseStatistics = copy(
+        monthlyExpenses = monthlyExpenses.map { expense ->
+            if (YearMonth.of(year, expense.month).isBefore(currentMonth)) {
+                expense
+            } else {
+                expense.copy(amountMinor = 0L)
+            }
+        },
+    )
 
     companion object {
         private const val MONTHS_PER_YEAR = 12L

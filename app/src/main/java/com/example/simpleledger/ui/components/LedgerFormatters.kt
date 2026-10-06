@@ -31,7 +31,7 @@ fun formatMonth(month: YearMonth): String = month.format(monthFormatter)
 
 fun parseAmountMinor(input: String): Long? {
     val normalized = input.trim().removePrefix("¥").removePrefix("￥")
-    return MoneyParser.parse(normalized)
+    return MoneyParser.parseExpression(normalized)
 }
 
 fun amountInput(amountMinor: Long): String =

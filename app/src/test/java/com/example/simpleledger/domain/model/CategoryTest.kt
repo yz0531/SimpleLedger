@@ -6,9 +6,9 @@ import org.junit.Test
 
 class CategoryTest {
     @Test
-    fun expensePickerUsesTheSevenCurrentCategories() {
+    fun expensePickerUsesTheEightCurrentCategories() {
         assertEquals(
-            listOf("饮食", "交通", "购物", "居住", "娱乐", "医疗", "其他"),
+            listOf("饮食", "交通", "购物", "居住", "娱乐", "医疗", "旅行", "其他"),
             Categories.forType(TransactionType.EXPENSE).map(Category::label),
         )
     }

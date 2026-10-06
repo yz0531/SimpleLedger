@@ -18,6 +18,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ReceiptLong
 import androidx.compose.material.icons.rounded.BarChart
@@ -27,6 +29,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -34,8 +37,10 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -66,6 +71,7 @@ import com.example.simpleledger.ui.settings.SkinPickerScreen
 import com.example.simpleledger.ui.statistics.StatisticsScreen
 import com.example.simpleledger.ui.theme.SkinBackground
 import com.example.simpleledger.ui.transfer.TransferScreen
+import java.time.YearMonth
 import kotlinx.coroutines.CancellationException
 
 private const val LEDGER_APP_LOG_TAG = "LedgerApp"
@@ -113,6 +119,7 @@ fun LedgerApp(
     val currentRoute = backStackEntry?.destination?.route
     val showBottomBar = topLevelDestinations.any { it.route == currentRoute }
     val lifecycleOwner = LocalLifecycleOwner.current
+    var requestedHomeMonth by rememberSaveable { mutableStateOf<String?>(null) }
     var foregroundGeneration by remember {
         mutableIntStateOf(
             if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) 1 else 0,
@@ -152,7 +159,7 @@ fun LedgerApp(
 
     val topLevelScreenModifier = Modifier
         .fillMaxSize()
-        .padding(bottom = 64.dp)
+        .padding(bottom = 58.dp)
         .navigationBarsPadding()
 
     SkinBackground(appearance = appearance, modifier = modifier) {
@@ -176,21 +183,38 @@ fun LedgerApp(
                         NavigationBar(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(64.dp),
+                                .height(58.dp),
                             containerColor = Color.Transparent,
                             tonalElevation = 0.dp,
                             windowInsets = WindowInsets(0, 0, 0, 0),
                         ) {
                             topLevelDestinations.forEach { destination ->
                                 NavigationBarItem(
-                                    modifier = Modifier.offset(y = 3.dp),
+                                    modifier = Modifier.offset(y = 5.dp),
                                     selected = currentRoute == destination.route,
                                     onClick = { navController.navigateTopLevel(destination.route) },
+                                    colors = NavigationBarItemDefaults.colors(
+                                        indicatorColor = Color.Transparent,
+                                    ),
                                     icon = {
-                                        Icon(
-                                            imageVector = destination.icon,
-                                            contentDescription = destination.label,
-                                        )
+                                        Box(
+                                            modifier = Modifier
+                                                .size(width = 52.dp, height = 28.dp)
+                                                .background(
+                                                    color = if (currentRoute == destination.route) {
+                                                        MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.9f)
+                                                    } else {
+                                                        Color.Transparent
+                                                    },
+                                                    shape = RoundedCornerShape(50),
+                                                ),
+                                            contentAlignment = androidx.compose.ui.Alignment.Center,
+                                        ) {
+                                            Icon(
+                                                imageVector = destination.icon,
+                                                contentDescription = destination.label,
+                                            )
+                                        }
                                     },
                                     label = { Text(destination.label) },
                                 )
@@ -217,6 +241,8 @@ fun LedgerApp(
                         mode = mode,
                         onAdd = { navController.navigate(Routes.EDITOR) },
                         onEdit = { id -> navController.navigate(Routes.editor(id)) },
+                        targetMonth = requestedHomeMonth?.let(YearMonth::parse),
+                        onTargetMonthHandled = { requestedHomeMonth = null },
                         modifier = topLevelScreenModifier,
                     )
                 }
@@ -232,6 +258,10 @@ fun LedgerApp(
                 composable(Routes.STATISTICS) {
                     StatisticsScreen(
                         repository = container.repository,
+                        onMonthSelected = { month ->
+                            requestedHomeMonth = month.toString()
+                            navController.navigateTopLevel(Routes.HOME)
+                        },
                         modifier = topLevelScreenModifier,
                     )
                 }

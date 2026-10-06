@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -60,7 +62,7 @@ import java.time.YearMonth
 import java.time.temporal.ChronoUnit
 import kotlinx.coroutines.launch
 
-private const val MONTH_PAGE_COUNT = 2401
+private const val MONTH_PAGE_COUNT = 4801
 private const val CURRENT_MONTH_PAGE = MONTH_PAGE_COUNT / 2
 
 private enum class LedgerFilter(val label: String) {
@@ -75,6 +77,8 @@ fun HomeScreen(
     mode: LedgerMode,
     onAdd: () -> Unit,
     onEdit: (String) -> Unit,
+    targetMonth: YearMonth? = null,
+    onTargetMonthHandled: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val baseMonth = remember { YearMonth.now() }
@@ -92,6 +96,16 @@ fun HomeScreen(
         if (expenseOnly) filterName = LedgerFilter.ALL.name
     }
 
+    LaunchedEffect(targetMonth) {
+        val requestedMonth = targetMonth ?: return@LaunchedEffect
+        val monthOffset = ChronoUnit.MONTHS.between(baseMonth, requestedMonth).toInt()
+        val targetPage = CURRENT_MONTH_PAGE + monthOffset
+        if (targetPage in 0 until MONTH_PAGE_COUNT) {
+            pagerState.scrollToPage(targetPage)
+        }
+        onTargetMonthHandled()
+    }
+
     Scaffold(
         modifier = modifier,
         containerColor = Color.Transparent,
@@ -99,10 +113,13 @@ fun HomeScreen(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         floatingActionButton = {
             ExtendedFloatingActionButton(
+                modifier = Modifier
+                    .height(48.dp)
+                    .offset(y = (-4).dp),
                 onClick = onAdd,
                 icon = { Icon(Icons.Rounded.Add, contentDescription = null) },
                 text = { Text("记一笔") },
-                shape = RoundedCornerShape(20.dp),
+                shape = RoundedCornerShape(18.dp),
             )
         },
     ) { innerPadding ->

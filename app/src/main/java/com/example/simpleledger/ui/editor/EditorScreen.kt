@@ -66,6 +66,7 @@ import com.example.simpleledger.ui.components.CompactTopBar
 import com.example.simpleledger.ui.components.amountInput
 import com.example.simpleledger.ui.components.formatEditorDay
 import com.example.simpleledger.ui.components.parseAmountMinor
+import com.example.simpleledger.util.MoneyParser
 import java.time.LocalDate
 import java.util.UUID
 import kotlinx.coroutines.delay
@@ -115,7 +116,7 @@ fun EditorScreen(
         if (isSaving) return
         val amountMinor = parseAmountMinor(amount)
         if (amountMinor == null) {
-            amountError = "请输入大于 0、最多两位小数的金额"
+            amountError = "请输入有效金额或加减乘除算式，结果需大于 0"
             return
         }
         if (categoryId.isBlank()) {
@@ -299,7 +300,7 @@ fun EditorScreen(
                         OutlinedTextField(
                             value = amount,
                             onValueChange = { value ->
-                                if (value.length <= 14 && value.all { it.isDigit() || it == '.' || it == ',' }) {
+                                if (MoneyParser.isExpressionInput(value)) {
                                     amount = value
                                     amountError = null
                                 }
@@ -355,6 +356,7 @@ fun EditorScreen(
                     label = { Text("备注（可选）") },
                     placeholder = { Text("写点什么…") },
                     supportingText = { Text("${note.length}/$MAX_LEDGER_NOTE_LENGTH") },
+                    textStyle = MaterialTheme.typography.bodyMedium,
                     minLines = 2,
                     maxLines = 4,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),

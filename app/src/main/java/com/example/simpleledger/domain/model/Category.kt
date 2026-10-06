@@ -13,6 +13,7 @@ object Categories {
     val expenseHousing = Category("expense.housing", "居住", TransactionType.EXPENSE)
     val expenseEntertainment = Category("expense.entertainment", "娱乐", TransactionType.EXPENSE)
     val expenseHealthcare = Category("expense.healthcare", "医疗", TransactionType.EXPENSE)
+    val expenseTravel = Category("expense.travel", "旅行", TransactionType.EXPENSE)
     val expenseOther = Category("expense.other", "其他", TransactionType.EXPENSE)
 
     // Keep the former category readable for existing databases and backups, but do not offer it for new entries.
@@ -31,6 +32,7 @@ object Categories {
         expenseHousing,
         expenseEntertainment,
         expenseHealthcare,
+        expenseTravel,
         expenseOther,
         legacyExpenseEducation,
         incomeSalary,

@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -80,10 +82,13 @@ fun RecurringScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
             ExtendedFloatingActionButton(
+                modifier = Modifier
+                    .height(48.dp)
+                    .offset(y = (-4).dp),
                 onClick = onAdd,
                 icon = { Icon(Icons.Rounded.Add, contentDescription = null) },
                 text = { Text("新建周期") },
-                shape = RoundedCornerShape(20.dp),
+                shape = RoundedCornerShape(18.dp),
             )
         },
     ) { innerPadding ->

@@ -4,6 +4,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ReceiptLong
 import androidx.compose.material.icons.rounded.CardGiftcard
 import androidx.compose.material.icons.rounded.DirectionsSubway
+import androidx.compose.material.icons.rounded.FlightTakeoff
 import androidx.compose.material.icons.rounded.HealthAndSafety
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.MoreHoriz
@@ -23,6 +24,7 @@ fun categoryIcon(categoryId: String): ImageVector = when (categoryId) {
     "expense.housing" -> Icons.Rounded.Home
     "expense.entertainment" -> Icons.Rounded.Movie
     "expense.healthcare" -> Icons.Rounded.HealthAndSafety
+    "expense.travel" -> Icons.Rounded.FlightTakeoff
     "expense.education" -> Icons.Rounded.School
     "income.salary" -> Icons.Rounded.Work
     "income.bonus" -> Icons.Rounded.CardGiftcard

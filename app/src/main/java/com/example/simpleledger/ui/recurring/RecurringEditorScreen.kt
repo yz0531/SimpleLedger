@@ -65,6 +65,7 @@ import com.example.simpleledger.ui.components.CompactTopBar
 import com.example.simpleledger.ui.components.amountInput
 import com.example.simpleledger.ui.components.formatEditorDay
 import com.example.simpleledger.ui.components.parseAmountMinor
+import com.example.simpleledger.util.MoneyParser
 import java.time.LocalDate
 import java.time.format.TextStyle
 import java.util.Locale
@@ -172,7 +173,7 @@ fun RecurringEditorScreen(
         if (isSaving) return@saveRule
         val amountMinor = parseAmountMinor(amount)
         if (amountMinor == null) {
-            amountError = "请输入大于 0、最多两位小数的金额"
+            amountError = "请输入有效金额或加减乘除算式，结果需大于 0"
             return@saveRule
         }
         val start = LocalDate.parse(startDate)
@@ -303,7 +304,7 @@ fun RecurringEditorScreen(
                         OutlinedTextField(
                             value = amount,
                             onValueChange = { value ->
-                                if (value.length <= 14 && value.all { it.isDigit() || it == '.' || it == ',' }) {
+                                if (MoneyParser.isExpressionInput(value)) {
                                     amount = value
                                     amountError = null
                                 }

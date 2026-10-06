@@ -3,6 +3,7 @@ package com.example.simpleledger.ui.statistics
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -50,7 +52,7 @@ import com.example.simpleledger.domain.model.MonthlyExpense
 import com.example.simpleledger.domain.model.YearlyExpenseStatistics
 import com.example.simpleledger.domain.repository.LedgerRepository
 import com.example.simpleledger.ui.components.formatMoney
-import java.time.Year
+import java.time.YearMonth
 import kotlinx.coroutines.launch
 
 private const val YEAR_PAGE_COUNT = 401
@@ -59,8 +61,10 @@ private const val CURRENT_YEAR_PAGE = YEAR_PAGE_COUNT / 2
 @Composable
 fun StatisticsScreen(
     repository: LedgerRepository,
+    onMonthSelected: (YearMonth) -> Unit,
     modifier: Modifier = Modifier,
-    initialYear: Int = Year.now().value,
+    currentMonth: YearMonth = YearMonth.now(),
+    initialYear: Int = currentMonth.year,
 ) {
     val baseYear = remember(initialYear) { initialYear }
     val pagerState = rememberPagerState(
@@ -93,6 +97,8 @@ fun StatisticsScreen(
                     pagerState.animateScrollToPage(page + 1, animationSpec = tween(240))
                 }
             },
+            currentMonth = currentMonth,
+            onMonthSelected = { month -> onMonthSelected(YearMonth.of(year, month)) },
         )
     }
 }
@@ -105,6 +111,8 @@ private fun YearStatisticsPage(
     canGoNext: Boolean,
     onPrevious: () -> Unit,
     onNext: () -> Unit,
+    currentMonth: YearMonth,
+    onMonthSelected: (Int) -> Unit,
 ) {
     val statisticsFlow = remember(repository, year) {
         repository.observeYearlyExpenseStatistics(year)
@@ -112,6 +120,9 @@ private fun YearStatisticsPage(
     val statistics by statisticsFlow.collectAsStateWithLifecycle(
         initialValue = YearlyExpenseStatistics.from(emptyList(), year),
     )
+    val completedStatistics = remember(statistics, currentMonth) {
+        statistics.completedBefore(currentMonth)
+    }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -128,11 +139,21 @@ private fun YearStatisticsPage(
             )
         }
 
-        if (statistics.isEmpty) {
-            item { EmptyStatistics(year = year) }
+        if (completedStatistics.isEmpty) {
+            item {
+                EmptyStatistics(
+                    year = year,
+                    currentYear = currentMonth.year,
+                )
+            }
         } else {
-            item { AnnualSummaryCard(statistics = statistics) }
-            item { MonthlyExpenseChart(statistics = statistics) }
+            item { AnnualSummaryCard(statistics = completedStatistics) }
+            item {
+                MonthlyExpenseChart(
+                    statistics = completedStatistics,
+                    onMonthSelected = onMonthSelected,
+                )
+            }
         }
     }
 }
@@ -239,15 +260,19 @@ private fun SummaryMetric(
 }
 
 @Composable
-private fun MonthlyExpenseChart(statistics: YearlyExpenseStatistics) {
+private fun MonthlyExpenseChart(
+    statistics: YearlyExpenseStatistics,
+    onMonthSelected: (Int) -> Unit,
+) {
     val colors = MaterialTheme.colorScheme
     val highestMonth = requireNotNull(statistics.highestExpenseMonth)
+    val displayedMonths = statistics.monthsWithExpense
     val description = remember(statistics) {
         buildString {
             append(statistics.year)
             append("年年度支出柱状图。")
             append(
-                statistics.monthlyExpenses.joinToString("，") { month ->
+                displayedMonths.joinToString("，") { month ->
                     "${month.month}月${formatMoney(month.amountMinor)}"
                 },
             )
@@ -275,34 +300,11 @@ private fun MonthlyExpenseChart(statistics: YearlyExpenseStatistics) {
 
             Spacer(Modifier.height(24.dp))
             ExpenseBars(
-                monthlyExpenses = statistics.monthlyExpenses,
+                monthlyExpenses = displayedMonths,
                 highestMonth = highestMonth.month,
                 contentDescription = description,
-            )
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 10.dp),
-            ) {
-                statistics.monthlyExpenses.forEach { month ->
-                    Text(
-                        text = month.month.toString(),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = if (month.month == highestMonth.month) colors.primary else colors.onSurfaceVariant,
-                        fontWeight = if (month.month == highestMonth.month) FontWeight.Bold else FontWeight.Normal,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-            }
-            Text(
-                text = "月份",
-                style = MaterialTheme.typography.labelSmall,
-                color = colors.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 3.dp),
+                year = statistics.year,
+                onMonthSelected = onMonthSelected,
             )
         }
     }
@@ -313,6 +315,8 @@ private fun ExpenseBars(
     monthlyExpenses: List<MonthlyExpense>,
     highestMonth: Int,
     contentDescription: String,
+    year: Int,
+    onMonthSelected: (Int) -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
     val maximum = monthlyExpenses.maxOf(MonthlyExpense::amountMinor)
@@ -322,54 +326,97 @@ private fun ExpenseBars(
     val peakTopColor = colors.tertiary
     val peakBottomColor = colors.primary
 
-    Canvas(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(210.dp)
+            .height(232.dp)
             .semantics { this.contentDescription = contentDescription },
     ) {
-        val gridStroke = 1.dp.toPx()
-        repeat(5) { line ->
-            val y = size.height * line / 4f
-            drawLine(
-                color = gridColor,
-                start = Offset(0f, y),
-                end = Offset(size.width, y),
-                strokeWidth = gridStroke,
-            )
-        }
-
-        val slotWidth = size.width / monthlyExpenses.size
-        val barWidth = slotWidth * 0.54f
-        val minimumVisibleHeight = 4.dp.toPx()
-
-        monthlyExpenses.forEachIndexed { index, month ->
-            if (month.amountMinor == 0L) return@forEachIndexed
-
-            val ratio = (month.amountMinor.toDouble() / maximum.toDouble()).toFloat()
-            val barHeight = (size.height * ratio).coerceAtLeast(minimumVisibleHeight)
-            val left = (slotWidth * index) + ((slotWidth - barWidth) / 2f)
-            val top = size.height - barHeight
-            val cornerRadius = minOf(barWidth / 2f, barHeight / 2f)
-            val brush = if (month.month == highestMonth) {
-                Brush.verticalGradient(listOf(peakTopColor, peakBottomColor), startY = top, endY = size.height)
-            } else {
-                Brush.verticalGradient(listOf(barTopColor, barBottomColor), startY = top, endY = size.height)
+        Canvas(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(210.dp),
+        ) {
+            val gridStroke = 1.dp.toPx()
+            repeat(5) { line ->
+                val y = size.height * line / 4f
+                drawLine(
+                    color = gridColor,
+                    start = Offset(0f, y),
+                    end = Offset(size.width, y),
+                    strokeWidth = gridStroke,
+                )
             }
-
-            drawRoundRect(
-                brush = brush,
-                topLeft = Offset(left, top),
-                size = Size(barWidth, barHeight),
-                cornerRadius = CornerRadius(cornerRadius, cornerRadius),
-            )
+        }
+        Row(Modifier.fillMaxSize()) {
+            monthlyExpenses.forEach { month ->
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .clickable(
+                            onClickLabel = "查看 $year 年 ${month.month} 月账本",
+                            onClick = { onMonthSelected(month.month) },
+                        ),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Canvas(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth(),
+                    ) {
+                        val ratio = (month.amountMinor.toDouble() / maximum.toDouble()).toFloat()
+                        val barHeight = (size.height * ratio).coerceAtLeast(4.dp.toPx())
+                        val barWidth = minOf(size.width * 0.54f, 28.dp.toPx())
+                        val left = (size.width - barWidth) / 2f
+                        val top = size.height - barHeight
+                        val cornerRadius = minOf(barWidth / 2f, barHeight / 2f)
+                        val brush = if (month.month == highestMonth) {
+                            Brush.verticalGradient(
+                                listOf(peakTopColor, peakBottomColor),
+                                startY = top,
+                                endY = size.height,
+                            )
+                        } else {
+                            Brush.verticalGradient(
+                                listOf(barTopColor, barBottomColor),
+                                startY = top,
+                                endY = size.height,
+                            )
+                        }
+                        drawRoundRect(
+                            brush = brush,
+                            topLeft = Offset(left, top),
+                            size = Size(barWidth, barHeight),
+                            cornerRadius = CornerRadius(cornerRadius, cornerRadius),
+                        )
+                    }
+                    Text(
+                        text = "${month.month}月",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (month.month == highestMonth) colors.primary else colors.onSurfaceVariant,
+                        fontWeight = if (month.month == highestMonth) FontWeight.Bold else FontWeight.Normal,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(top = 10.dp),
+                    )
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun EmptyStatistics(year: Int) {
+private fun EmptyStatistics(
+    year: Int,
+    currentYear: Int,
+) {
     val colors = MaterialTheme.colorScheme
+    val title = if (year < currentYear) "这一年还没有支出" else "暂无已完成月份的支出"
+    val description = if (year < currentYear) {
+        "记录支出后，这里会自动生成月度趋势"
+    } else {
+        "月份结束后，有支出的月份会显示在这里"
+    }
 
     Card(
         modifier = Modifier
@@ -415,12 +462,12 @@ private fun EmptyStatistics(year: Int) {
                 Text("✨", fontSize = 24.sp, modifier = Modifier.align(Alignment.TopEnd))
             }
             Text(
-                text = "这一年还没有支出",
+                text = title,
                 style = MaterialTheme.typography.titleLarge,
                 modifier = Modifier.padding(top = 20.dp),
             )
             Text(
-                text = "记录支出后，这里会自动生成月度趋势",
+                text = description,
                 style = MaterialTheme.typography.bodyMedium,
                 color = colors.onSurfaceVariant,
                 textAlign = TextAlign.Center,
